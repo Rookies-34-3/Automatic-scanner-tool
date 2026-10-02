@@ -11,6 +11,7 @@ Automatic-scanner-tool/
 ├─ sink_finder.py
 ├─ openai_module.py
 ├─ report_writer.py
+├─ .env                     # 로컬 OpenAI API 키 설정
 ├─ module/                  # 취약점 검사 function tool
 ├─ docs/
 └─ output/
@@ -21,7 +22,7 @@ Sink 찾기를 누르면 입력 화면을 로딩 표시로 바꾸고, 수집 후
 경로·입력 필드·후보 tool·대표 URL 표를 `Sink 탐색 보고서` 화면에 표시한다.
 `취약점 분석하기` 버튼은 준비 중 안내를 표시하고, `뒤로가기`는 기존 입력값을 복원한다.
 `sink_finder.py`는 로컬 대상의 링크·폼·JavaScript에서 엔드포인트와 입력 후보를 수집한다.
-`openai_module.py`에는 전달 데이터 집계를 구현했다. OpenAI API 호출과 검사 함수 실행,
+`openai_module.py`에는 전달 데이터 집계와 OpenAI 클라이언트 생성을 구현했다. OpenAI API 호출과 검사 함수 실행,
 취약점 분석 결과의 최종 보고서 생성은 아직 구현하지 않았다.
 
 ## OpenAI 전달용 집계
@@ -48,6 +49,15 @@ URL, HTTP 메서드, 파라미터를 입력받아 검사 결과를 반환하는 
 선택하면 애플리케이션이 해당 함수를 실행하고 결과를 모델에 돌려준다.
 
 ## 실행
+
+프로젝트 루트의 `.env`에 발급받은 키를 입력한다.
+
+```dotenv
+OPENAI_API_KEY=여기에_발급받은_키
+```
+
+`get_openai_client()`는 `python-dotenv`로 해당 파일을 읽어 클라이언트를 만든다.
+키가 비어 있으면 입력 안내 오류를 반환한다. `.env`는 Git에서 제외된다.
 
 ```powershell
 python -m pip install -r requirements.txt

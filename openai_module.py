@@ -5,9 +5,23 @@ SQLi, XSS, File I/O 등의 함수를 tool로 등록하고 호출 결과를 수�
 """
 
 import json
+import os
 from copy import deepcopy
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
+
+from dotenv import load_dotenv
+from openai import OpenAI
+
+
+def get_openai_client() -> OpenAI:
+    """프로젝트 루트의 .env에서 API 키를 읽어 OpenAI 클라이언트를 만든다."""
+    # Streamlit을 재시작하지 않아도 .env에서 수정한 키를 읽는다.
+    load_dotenv(Path(__file__).resolve().with_name(".env"), override=True)
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("프로젝트 루트의 .env 파일에 OPENAI_API_KEY를 입력하세요.")
+    return OpenAI(api_key=api_key)
 
 
 def prepare_sinks_for_openai(sinks: list[dict]) -> dict:
