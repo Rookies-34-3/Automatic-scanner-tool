@@ -1,0 +1,14 @@
+{
+  "target_name": "sslc_lab_minimal",
+  "base_url": "http://127.0.0.1:8080",
+
+  "login_path": "/login",
+  "credentials": {
+    "victim":   { "userId": "student1", "password": "Lab1234!" },
+    "attacker": { "userId": "student2", "password": "Lab1234!" },
+    "admin":    { "userId": "admin",    "password": "Lab1234!" }
+  },
+
+  "upload_path": "/my-class/board/write/qna",
+  "notice_path": "/my-class/board/write/notice"
+}
