@@ -1,0 +1,18 @@
+{
+    "scan_id": "SCAN-SSRF-001",
+    "category": "SSRF",
+    "target_url": "http://13.125.233.51/pre-course/write",
+    "method": "POST",
+    "parameter": "url",
+    "payload": "http://internal-service:9000/health",
+    "result": "N/A",
+    "severity": "INFO",
+    "evidence": "외부 URL과 내부 URL 테스트 모두 대상 애플리케이션의 동일한 '외부 콘텐츠 추가하기' HTML 페이지를 반환했습니다. 내부 서비스의 /health 응답 내용이나 내부 연결 성공을 나타내는 고유한 헤더·본문·오류 메시지는 확인되지 않았습니다.",
+    "reason": "두 응답의 상태 코드는 모두 200이지만, 이는 대상 애플리케이션 페이지의 정상 반환일 뿐 SSRF 증거가 아닙니다. 응답 본문과 헤더가 사실상 동일하며, 콘텐츠 길이 및 응답 시간의 미세한 차이만으로 서버가 internal-service:9000에 요청했다고 판단할 수 없습니다. 제공된 HTTP 응답만으로 내부 서비스 접근 여부를 확인할 수 없으므로 N/A로 판정합니다.",
+    "verification": {
+        "status": "CONFIRMED",
+        "method": "internal-service server log",
+        "evidence": "개발 및 검증 단계에서 internal-service의 GET /health 200 요청을 확인"
+    },
+    "scanned_at": "2026-10-02T16:09:13.767765"
+}
