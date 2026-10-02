@@ -7,7 +7,10 @@ from unittest.mock import patch
 from urllib.parse import urlsplit
 
 from streamlit.testing.v1 import AppTest
+from openai import OpenAIError
+import openai_module
 import sink_finder
+from module.analysis_stub import analyze_endpoint_stub
 
 
 APP = Path(__file__).resolve().parents[1] / "streamlit_app.py"
@@ -26,6 +29,18 @@ def scan(app=None):
     app.text_input[0].set_value("http://127.0.0.1:8080/")
     app.text_input[1].set_value("test-cookie")
     return app.button[0].click().run()
+
+
+def analysis_report(payload, on_progress=None):
+    if on_progress:
+        on_progress("임시 모듈 처리 완료")
+    return {
+        "model": "gpt-6.1-sol", "group_count": len(payload["groups"]),
+        "summary": "입력 지점 후보를 검토했습니다. 실제 검증은 미수행입니다.",
+        "tool_results": [analyze_endpoint_stub("http://127.0.0.1:8080/search", "GET", [
+            {"name": "content", "location": "query"},
+        ])],
+    }
 
 
 class StreamlitFlowTest(unittest.TestCase):
@@ -49,16 +64,23 @@ class StreamlitFlowTest(unittest.TestCase):
                 app = scan()
                 self.assertEqual(len(app.dataframe[0].value), 5)
                 self.assertFalse(app.text_input)
-                with patch.object(sink_finder, "find_sinks") as rerun_finder:
+                self.assertEqual(app.caption[0].value, "발견한 엔드포인트 6개 → OpenAI 전달 그룹 5개")
+                with patch("importlib.reload", side_effect=lambda module: module), \
+                        patch.object(openai_module, "analyze_sinks", side_effect=analysis_report) as analyze, \
+                        patch.object(sink_finder, "find_sinks") as rerun_finder:
                     app.button[1].click().run()
+                    app.run()
+                    analyze.assert_called_once()
                     rerun_finder.assert_not_called()
             stale_finder.assert_not_called()
         self.assertFalse(app.exception)
         self.assertFalse(app.error)
         self.assertEqual(len(app.session_state["sinks"]), 6)
         self.assertEqual(len(app.session_state["openai_sinks"]["groups"]), 5)
-        self.assertEqual(app.caption[0].value, "발견한 엔드포인트 6개 → OpenAI 전달 그룹 5개")
-        self.assertEqual(app.info[0].value, "취약점 분석 기능은 준비 중입니다.")
+        self.assertEqual(len(app.dataframe), 1)
+        self.assertEqual([heading.value for heading in app.subheader], ["AI 분석 보고서"])
+        self.assertEqual(app.session_state["analysis_result"]["tool_results"][0]["verified"], False)
+        self.assertTrue(any("실제 검증 미수행" in item.value for item in app.caption))
 
     def test_none_is_visible_and_preserves_previous_results(self):
         app = AppTest.from_file(str(APP)).run()
@@ -91,14 +113,52 @@ class StreamlitFlowTest(unittest.TestCase):
         with patch("urllib.request.build_opener", return_value=SimpleNamespace(open=open_page)):
             app = scan()
             self.assertFalse(app.exception)
+            with patch("importlib.reload", side_effect=lambda module: module), \
+                    patch.object(openai_module, "analyze_sinks", side_effect=analysis_report) as analyze:
+                app.button[1].click().run()
+                app.button[0].click().run()
+                self.assertEqual([heading.value for heading in app.subheader], ["Sink 탐색 보고서"])
+                self.assertEqual(len(app.dataframe), 1)
+                app.button[1].click().run()
+                self.assertEqual([heading.value for heading in app.subheader], ["AI 분석 보고서"])
+                analyze.assert_called_once()
+            self.assertIn("analysis_result", app.session_state)
             count = len(requests)
             app.button[0].click().run()
             self.assertFalse(app.exception)
             self.assertEqual(len(requests), count)
+            self.assertEqual([heading.value for heading in app.subheader], ["Sink 탐색 보고서"])
+            app.button[0].click().run()
         self.assertEqual(app.text_input[0].value, "http://127.0.0.1:8080/")
         self.assertEqual(app.text_input[1].value, "test-cookie")
         self.assertEqual(app.button[0].label, "Sink 찾기")
         self.assertFalse(app.dataframe)
+        with patch("urllib.request.build_opener", return_value=SimpleNamespace(open=open_page)):
+            scan(app)
+        self.assertNotIn("analysis_result", app.session_state)
+
+    def test_analysis_error_is_visible_without_exposing_credentials(self):
+        with patch("urllib.request.build_opener", return_value=SimpleNamespace(open=lambda request, timeout: response())):
+            app = scan()
+        with patch("importlib.reload", side_effect=lambda module: module), \
+                patch.object(openai_module, "analyze_sinks", side_effect=OpenAIError("private-test-key")) as analyze:
+            app.button[1].click().run()
+            app.run()
+            analyze.assert_called_once()
+        self.assertFalse(app.exception)
+        self.assertEqual(len(app.error), 1)
+        self.assertIn("OpenAI 요청에 실패", app.error[0].value)
+        self.assertNotIn("private-test-key", app.error[0].value)
+        self.assertNotIn("analysis_result", app.session_state)
+        self.assertEqual([heading.value for heading in app.subheader], ["AI 분석 보고서"])
+        self.assertEqual([button.label for button in app.button], ["뒤로가기", "다시 시도"])
+        with patch("importlib.reload", side_effect=lambda module: module), \
+                patch.object(openai_module, "analyze_sinks", side_effect=analysis_report) as retry:
+            app.button[1].click().run()
+            retry.assert_called_once()
+        self.assertFalse(app.error)
+        self.assertIn("analysis_result", app.session_state)
+        self.assertNotIn("analysis_error", app.session_state)
 
     def test_session_failure_is_visible(self):
         opener = SimpleNamespace(open=lambda request, timeout: response(status=401))

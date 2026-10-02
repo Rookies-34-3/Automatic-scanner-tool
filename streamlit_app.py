@@ -6,6 +6,7 @@ ROOKIESCAN 도구 실행 및 보고서 출력하는 streamlit 기반 웹
 from importlib import reload
 
 import streamlit as st
+from openai import OpenAIError
 import sink_finder
 import openai_module
 
@@ -15,7 +16,7 @@ st.markdown("<style>.stMainBlockContainer {padding-top: 3rem;}</style>", unsafe_
 # target_url이랑 session_cookie받아오기
 st.title("ROOKIESCAN")
 
-# show_report 값으로 입력 화면과 보고서 화면을 전환
+# show_report와 show_analysis 값으로 입력·Sink 보고서·AI 보고서 화면을 전환
 if not st.session_state.get("show_report", False):
     # 제목과 입력 폼 사이에 작은 간격
     st.space("small")
@@ -49,9 +50,13 @@ if not st.session_state.get("show_report", False):
             st.session_state["sinks"] = sinks
             st.session_state["openai_sinks"] = openai_sinks
             st.session_state["scan_target_url"] = target_url.strip()
+            st.session_state.pop("analysis_result", None)
+            st.session_state.pop("analysis_error", None)
+            st.session_state.pop("analysis_pending", None)
+            st.session_state["show_analysis"] = False
             st.session_state["show_report"] = True
         st.rerun()
-else:
+elif not st.session_state.get("show_analysis", False):
     sinks = st.session_state["sinks"]
     groups = st.session_state["openai_sinks"]["groups"]
     st.subheader("Sink 탐색 보고서")
@@ -74,8 +79,52 @@ else:
         if st.button("뒤로가기"):
             st.session_state["show_report"] = False
             st.rerun()
-        analyze_clicked = st.button("취약점 분석하기")
+        if st.button("취약점 분석하기", disabled=not groups):
+            st.session_state["show_analysis"] = True
+            st.session_state["analysis_pending"] = "analysis_result" not in st.session_state
+            st.rerun()
 
-    # 실제 취약점 분석 기능을 연결하기 전까지 안내 메시지를 표시
-    if analyze_clicked:
-        st.info("취약점 분석 기능은 준비 중입니다.")
+else:
+    st.subheader("AI 분석 보고서")
+    st.write("대상 URL:", st.session_state["scan_target_url"])
+    # AI 요청과 임시 tool 처리의 진행 상태를 표시
+    if st.session_state.pop("analysis_pending", False):
+        with st.status("AI가 Sink 후보를 분석 중입니다…", expanded=True) as status:
+            try:
+                report = reload(openai_module).analyze_sinks(
+                    st.session_state["openai_sinks"], on_progress=status.write,
+                )
+            except (ValueError, OpenAIError) as exc:
+                status.update(label="AI 분석 실패", state="error")
+                message = str(exc) if isinstance(exc, ValueError) else (
+                    f"OpenAI 요청에 실패했습니다 ({type(exc).__name__}). "
+                    "API 키, 모델 권한과 연결 상태를 확인하세요."
+                )
+                st.session_state["analysis_error"] = message
+            else:
+                st.session_state["analysis_result"] = report
+                st.session_state.pop("analysis_error", None)
+                status.update(label="AI 분석 완료", state="complete", expanded=False)
+
+    if "analysis_error" in st.session_state:
+        st.error(st.session_state["analysis_error"])
+    # 저장된 결과를 보여주므로 화면을 다시 그려도 API를 재호출하지 않는다.
+    if "analysis_result" in st.session_state:
+        report = st.session_state["analysis_result"]
+        st.caption(f"모델: {report['model']} · 분석 대상 {report['group_count']}개 그룹 "
+                   f"· 임시 tool 호출 {len(report['tool_results'])}회 · 실제 검증 미수행")
+        st.markdown(report["summary"])
+        st.dataframe([{
+            "메서드": result["method"], "URL": result["url"],
+            "입력 필드": ", ".join(f"{p['name']} ({p['location']})" for p in result["parameters"]) or "-",
+            "호출 함수": result["tool"], "처리 상태": result["message"], "검증 상태": "미검증",
+        } for result in report["tool_results"]], hide_index=True)
+
+    # AI 보고서에서 돌아가면 저장된 Sink 탐색 보고서를 보여준다.
+    with st.container(horizontal=True, horizontal_alignment="distribute"):
+        if st.button("뒤로가기"):
+            st.session_state["show_analysis"] = False
+            st.rerun()
+        if "analysis_result" not in st.session_state and st.button("다시 시도"):
+            st.session_state["analysis_pending"] = True
+            st.rerun()
