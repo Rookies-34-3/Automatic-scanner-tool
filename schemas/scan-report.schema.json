@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rookiescan.local/schemas/scan-report.schema.json",
+  "title": "ROOKIESCAN Scan Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "scan_id",
+    "generated_at",
+    "target",
+    "scope",
+    "summary",
+    "module_runs",
+    "routing_decisions",
+    "findings",
+    "errors"
+  ],
+  "properties": {
+    "report_id": {"type": "string", "minLength": 1},
+    "scan_id": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "base_url"],
+      "properties": {
+        "name": {"type": "string"},
+        "base_url": {"type": "string", "pattern": "^https?://"}
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_paths", "endpoint_count", "selected_modules", "auth_profile_ref"],
+      "properties": {
+        "allowed_paths": {"type": "array", "items": {"type": "string"}},
+        "endpoint_count": {"type": "integer", "minimum": 0},
+        "selected_modules": {"type": "array", "items": {"type": "string"}},
+        "auth_profile_ref": {"type": ["string", "null"]}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "by_verdict", "by_severity", "highest_severity"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "by_verdict": {"$ref": "#/$defs/counts"},
+        "by_severity": {"$ref": "#/$defs/counts"},
+        "highest_severity": {
+          "type": ["string", "null"],
+          "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", null]
+        }
+      }
+    },
+    "module_runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scanner_id", "status", "started_at", "finished_at", "finding_count", "error"],
+        "properties": {
+          "scanner_id": {"type": "string"},
+          "status": {"type": "string", "enum": ["COMPLETED", "PARTIAL", "ERROR", "SKIPPED"]},
+          "started_at": {"type": ["string", "null"], "format": "date-time"},
+          "finished_at": {"type": ["string", "null"], "format": "date-time"},
+          "finding_count": {"type": "integer", "minimum": 0},
+          "error": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "routing_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["endpoint_id", "scanner_id", "reason", "source"],
+        "properties": {
+          "endpoint_id": {"type": "string"},
+          "scanner_id": {"type": "string"},
+          "reason": {"type": "string"},
+          "source": {"type": "string", "enum": ["function_call", "rule", "manual"]}
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "finding.schema.json"}
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stage", "scanner_id", "message"],
+        "properties": {
+          "stage": {"type": "string"},
+          "scanner_id": {"type": ["string", "null"]},
+          "message": {"type": "string"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  }
+}

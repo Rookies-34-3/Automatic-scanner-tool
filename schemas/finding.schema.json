@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rookiescan.local/schemas/finding.schema.json",
+  "title": "ROOKIESCAN Finding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "finding_id",
+    "scanner_id",
+    "title",
+    "vulnerability_type",
+    "verdict",
+    "severity",
+    "confidence",
+    "endpoint",
+    "parameter",
+    "evidence",
+    "impact",
+    "reproduction",
+    "remediation",
+    "classifications",
+    "details"
+  ],
+  "properties": {
+    "finding_id": {"type": "string", "minLength": 1},
+    "scanner_id": {
+      "type": "string",
+      "enum": ["sqli", "xss", "fileio", "authn", "authz", "ssrf"]
+    },
+    "title": {"type": "string", "minLength": 1},
+    "vulnerability_type": {"type": "string", "minLength": 1},
+    "verdict": {
+      "type": "string",
+      "enum": ["VULNERABLE", "REVIEW", "PASS", "INFO", "ERROR", "SKIPPED"]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["HIGH", "MEDIUM", "LOW"]
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["endpoint_id", "url", "method"],
+      "properties": {
+        "endpoint_id": {"type": "string"},
+        "url": {"type": "string", "pattern": "^https?://"},
+        "method": {"type": "string"}
+      }
+    },
+    "parameter": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["name", "location"],
+      "properties": {
+        "name": {"type": "string"},
+        "location": {"type": "string"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "status_code", "request_excerpt", "response_excerpt", "markers"],
+      "properties": {
+        "summary": {"type": "string"},
+        "status_code": {"type": ["integer", "null"]},
+        "request_excerpt": {"type": ["string", "null"]},
+        "response_excerpt": {"type": ["string", "null"]},
+        "markers": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "impact": {"type": "string"},
+    "reproduction": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "remediation": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "classifications": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cwe", "owasp"],
+      "properties": {
+        "cwe": {"type": ["string", "null"]},
+        "owasp": {"type": ["string", "null"]}
+      }
+    },
+    "details": {"type": "object"}
+  }
+}
