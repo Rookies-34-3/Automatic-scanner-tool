@@ -1,4 +1,5 @@
-"""Streamlit 진입점 자리만 정의한 설계 스캐폴드.
+import streamlit as st
 
-화면과 실행 로직은 구현 단계에서 추가한다.
-"""
+st.title("ROOKIESCAN")
+target_url = st.text_input("대상 URL")
+session_cookie = st.text_input("세션 쿠키", type="password")

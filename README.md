@@ -15,7 +15,15 @@ Automatic-scanner-tool/
 └─ output/
 ```
 
-현재 네 Python 파일에는 역할 설명만 있으며 실행 로직은 없다.
+`streamlit_app.py`에는 대상 URL과 세션 쿠키를 받는 입력칸만 구현되어 있다.
+나머지 세 모듈은 역할 설명만 있고 실행 로직은 없다.
+
+## 실행
+
+```powershell
+python -m pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
 
 ## 예정 흐름
 
