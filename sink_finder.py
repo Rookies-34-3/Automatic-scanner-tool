@@ -22,6 +22,8 @@ MAX_PAGES = 100
 MAX_DEPTH = 5
 TIMEOUT = 5
 MAX_BODY = 2 * 1024 * 1024
+
+# 정규식 패턴 
 ID_PATTERN = re.compile(r"^(?:\d+|[\da-fA-F]{8}(?:-[\da-fA-F]{4}){3}-[\da-fA-F]{12})$")
 CONTROL_PATTERN = re.compile(r"(?i)(?:csrf|token|password|session|cookie)")
 FLAG_PATTERN = re.compile(r"(?i)^(?:secret|private|visibility|owner|public)$")
@@ -32,7 +34,7 @@ STATIC_PATTERN = re.compile(r"(?i)\.(?:css|png|jpe?g|gif|svg|ico|webp|woff2?|ttf
 
 
 class _PageParser(HTMLParser):
-    """HTML 구조를 읽으며 입력값과 CSRF 토큰 값은 결과에 남기지 않는다."""
+    # HTML 페이지를 파싱해 링크, 폼, 스크립트, DOM 요소 등의 정보를 수집하는 파서
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -47,6 +49,7 @@ class _PageParser(HTMLParser):
         self.in_title = False
 
     def handle_starttag(self, tag, attributes):
+        # HTML 시작 태그를 처리해 링크, 폼 입력값, 스크립트 등의 정보를 수집
         attrs = dict(attributes)
         if attrs.get("id"):
             self.elements[attrs["id"]] = attrs
@@ -76,6 +79,7 @@ class _PageParser(HTMLParser):
             self.form["parameters"].append(parameter)
 
     def handle_endtag(self, tag):
+        # HTML 종료 태그를 처리해 form/script/title 파싱 상태를 종료
         if tag == "form":
             self.form = None
         elif tag == "script":
@@ -84,6 +88,7 @@ class _PageParser(HTMLParser):
             self.in_title = False
 
     def handle_data(self, data):
+        # script와 title 내부의 텍스트 데이터를 수집
         if self.in_script:
             self.inline_scripts.append(data)
         elif self.in_title:
@@ -91,11 +96,13 @@ class _PageParser(HTMLParser):
 
 
 class _NoRedirect(HTTPRedirectHandler):
+    # HTTP 리다이렉트를 자동으로 따라가지 않도록 막는 핸들러
     def redirect_request(self, request, response, code, message, headers, new_url):
-        return None  # 다른 출처로 Cookie가 전송되기 전에 URL을 직접 검사한다.
+        return None  
 
 
 def _normal_url(base, value, origin):
+    # 상대 URL을 절대 URL로 변환하고 동일 출처·안전성 조건을 검사해 정규화
     try:
         parts = urlsplit(urljoin(base, value))
         port = parts.port or (443 if parts.scheme == "https" else 80)
@@ -115,6 +122,7 @@ def _normal_url(base, value, origin):
 
 
 def _parameters(url):
+    # URL의 쿼리스트링과 경로 ID에서 엔드포인트 파라미터 정보를 추출
     parameters = [{"name": name, "location": "query", "input_type": "text"}
                   for name, _ in dict(parse_qsl(urlsplit(url).query, keep_blank_values=True)).items()]
     for part in urlsplit(url).path.split("/"):
@@ -125,11 +133,12 @@ def _parameters(url):
 
 
 def _endpoint_template(url):
+    # 숫자나 UUID 형태의 경로 값을 {id}로 바꿔 엔드포인트 템플릿을 생성
     return "/".join("{id}" if ID_PATTERN.fullmatch(part) else part for part in urlsplit(url).path.split("/"))
 
 
 def _classify(endpoint):
-    """규칙으로 후보만 분류한다. 숫자 ID나 URL 입력 자체는 취약점의 증거가 아니다."""
+    # 엔드포인트의 경로와 파라미터를 규칙 기반으로 분석해 취약점 Sink 후보를 분류
     url = endpoint["url"]
     path = urlsplit(url).path
     candidates = []
@@ -181,7 +190,7 @@ def _classify(endpoint):
 
 
 def _javascript_endpoints(script, page):
-    # ponytail: 정적 문자열과 DOM dataset만 해석한다. JS 실행이 필요한 사이트는 브라우저 수집을 추가한다.
+   # JavaScript 코드에서 fetch/axios 호출과 API 엔드포인트 정보를 정적으로 추출
     variables = {}
     bindings = dict(re.findall(r"(?:const|let|var)\s+(\w+)\s*=\s*document\.getElementById\(['\"]([^'\"]+)['\"]\)", script))
 
@@ -235,7 +244,7 @@ def _javascript_endpoints(script, page):
 
 
 def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] | None = None) -> list[dict]:
-    """로그인 상태의 로컬 사이트를 GET으로 순회하고 JSON으로 저장 가능한 목록을 반환한다.
+    """로그인 세션을 사용해 로컬 웹사이트를 순회하고 엔드포인트와 Sink 후보를 수집
 
     session_cookie는 쿠키 값만 또는 '쿠키명=값; 다른쿠키명=값' 형식이다. seed_paths의 기본값은
     WORDLIST 두 항목이며, 빈 목록을 전달하면 숨겨진 경로 요청을 생략한다.
@@ -284,6 +293,7 @@ def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] 
     public_opener = build_opener(ProxyHandler({}), _NoRedirect())
 
     def record(url, method="GET", parameters=(), source="crawler", source_page=None, **metadata):
+        # 발견한 URL과 메서드, 파라미터 등의 엔드포인트 정보를 records에 등록하거나 갱신
         key = (url, method)
         endpoint = records.setdefault(key, {"url": url, "method": method, "parameters": _parameters(url),
                                             "source": source, "sources": [], "sink_candidates": []})
@@ -304,6 +314,7 @@ def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] 
         return endpoint
 
     def fetch(url, authenticated=True):
+        # 지정한 URL에 GET 요청을 보내고 상태 코드, 헤더, 응답 본문을 반환
         path = urlsplit(url).path
         if STATIC_PATTERN.search(path) or (path.startswith("/uploads/") and not path.endswith("/")) or path.startswith("/download/"):
             raise ValueError("file_download_skipped")
@@ -324,6 +335,7 @@ def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] 
             return status, headers, body
 
     def javascript(script, page, page_url, depth, queue):
+         # JavaScript에서 발견한 API URL을 엔드포인트로 기록하고 필요하면 크롤링 큐에 추가
         for reference, method, parameters in _javascript_endpoints(script, page):
             url = _normal_url(page_url, reference, origin)
             if not url or STATIC_PATTERN.search(urlsplit(url).path):
