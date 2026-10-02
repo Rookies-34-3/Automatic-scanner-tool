@@ -9,7 +9,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -97,7 +97,7 @@ class Scanner:
     def scan(self, target, scan_id):
         finding = {
             "scan_id": scan_id, "category": "SQL Injection",
-            "target_url": target["path"], "method": "GET",
+            "target_url": target["path"], "method": target.get("method", "GET"),
             "parameter": target["parameter"], "payload": None,
             "status_code": None, "result": "N/A", "severity": "INFO",
             "evidence": "", "remediation": REMEDIATION,
@@ -106,12 +106,17 @@ class Scanner:
         }
 
         def fetch(payload):
-            response = self.request("GET", target["path"], params={target["parameter"]: payload})
+            # 입력 방식만 선택합니다. 페이로드와 아래의 판정 조건은 기존 그대로입니다.
+            method = target.get("method", "GET")
+            request_data = {target["parameter"]: payload}
+            options = {"params": request_data} if method == "GET" else {"data": request_data}
+            response = self.request(method, target["path"], **options)
             finding["status_code"] = response.status_code
             if 300 <= response.status_code < 500 or login_form(response):
                 raise ScanError(f"인증·접근·리다이렉트 문제 (HTTP {response.status_code})")
             return response
 
+        boolean_started = False  # 추가 증거 수집 중 발생한 실패를 구분합니다.
         try:
             baseline = fetch("")
             self.check_page(baseline)
@@ -125,12 +130,15 @@ class Scanner:
                     finding.update(result="VULNERABLE", severity="HIGH", payload=payload,
                                    evidence=f"반복 주입에서 MySQL 오류 노출: {matches[0].group(0)}")
                     finding["details"]["checks"].append({"type": "error", "confirmed": True})
-                    return finding
+                    # 오류 검사만 끝내고 Boolean 검사로 이어갑니다.
+                    break
                 if any(matches):
                     raise ScanError("MySQL 오류가 한 번만 나타나 재현 여부를 확인하지 못했습니다.")
                 for response in responses:
                     self.check_page(response)
-            finding["details"]["checks"].append({"type": "error", "confirmed": False})
+            else:
+                finding["details"]["checks"].append({"type": "error", "confirmed": False})
+            boolean_started = True
             base_text = self.result_text(baseline, "")
             if base_text != self.result_text(fetch(""), ""):
                 raise ScanError("일반 검색 결과가 반복 요청에서 변합니다.")
@@ -157,23 +165,103 @@ class Scanner:
                     "false_length": len(f1), "stable": stable, "confirmed": confirmed,
                 })
                 if confirmed:
-                    finding.update(result="VULNERABLE", severity="HIGH", payload=true_payload,
-                                   evidence="참 조건은 일반 검색 결과와 같고 거짓 조건과 다름. 두 차례 재현됨.")
+                    boolean_evidence = "참 조건은 일반 검색 결과와 같고 거짓 조건과 다름. 두 차례 재현됨."
+                    if finding["result"] == "VULNERABLE":
+                        # 기존 오류 증거와 대표 페이로드를 보존하고 추가 증거를 덧붙입니다.
+                        finding["evidence"] += " / " + boolean_evidence
+                    else:
+                        finding.update(result="VULNERABLE", severity="HIGH", payload=true_payload,
+                                       evidence=boolean_evidence)
                     return finding
                 if not stable or t1 != f1:
                     raise ScanError("응답 차이가 불안정하거나 기준 결과와 맞지 않아 판정 보류")
             boolean_checks = [c for c in finding["details"]["checks"] if c["type"] == "boolean"]
             if not boolean_checks:
                 raise ScanError("Boolean 페이로드에 대한 정상 응답을 확보하지 못했습니다.")
-            finding.update(result="SAFE", evidence="실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지")
+            # Boolean 증거가 없어도 앞서 확정한 오류 기반 취약 판정을 낮추지 않습니다.
+            if finding["result"] != "VULNERABLE":
+                finding.update(result="SAFE", evidence="실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지")
         except ScanError as exc:
-            finding["evidence"] = str(exc)
+            if boolean_started:
+                # 실패는 양호 증거가 아닙니다. 추가 검사 중단 사유를 별도 기록합니다.
+                finding["details"]["checks"].append({
+                    "type": "boolean", "confirmed": False,
+                    "completed": False, "reason": str(exc),
+                })
+            if finding["result"] != "VULNERABLE":
+                finding["evidence"] = str(exc)
         return finding
+
+
+def format_finding(finding, url):
+    """내부 판정 결과를 팀 공통 출력으로 변환합니다. 판정 자체는 바꾸지 않습니다."""
+    details = dict(finding.get("details", {}))
+    return {
+        "url": url,
+        "method": finding["method"],
+        "parameters": finding["parameter"],
+        "vuln": finding["result"],  # 기존 result(판정 문자열)는 이제 vuln입니다.
+        "result": {  # 팀 포맷의 result는 상세 정보를 담는 객체입니다.
+            **details,
+            "payload": finding["payload"],
+            "status_code": finding["status_code"],
+            "evidence": finding["evidence"],
+            "checks": details.get("checks", []),
+        },
+        "scan_id": finding["scan_id"],
+        "category": finding["category"],
+        "severity": finding["severity"],
+        "scanned_at": finding["scanned_at"],
+        "remediation": finding["remediation"],
+    }
+
+
+def run(url, method, parameters, cookie):
+    """통합용 진입점. 로그인·입력창·출력·파일 저장 없이 결과 객체 하나를 반환합니다.
+
+    parameters는 한 번에 점검할 파라미터 이름 문자열(예: "content")입니다.
+    cookie는 {"session": "로그인된 쿠키 값"} 형태의 딕셔너리입니다.
+    공통 로그인에서 session.cookies.get_dict()로 만들 수 있습니다.
+    POST는 application/x-www-form-urlencoded 폼 방식입니다.
+    입력 형식 오류는 ValueError, 접근/진단 실패는 vuln="N/A"로 구분합니다.
+    """
+    if not isinstance(url, str):
+        raise ValueError("url은 HTTP(S) 절대 URL 문자열이어야 합니다.")
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname or parts.username or parts.password or parts.fragment:
+        raise ValueError("url은 사용자 정보와 fragment가 없는 HTTP(S) 절대 URL이어야 합니다.")
+    if not isinstance(method, str) or method.upper() not in ("GET", "POST"):
+        raise ValueError("method는 GET 또는 POST여야 합니다.")
+    method = method.upper()
+    if not isinstance(parameters, str) or not parameters.strip():
+        raise ValueError("parameters는 점검할 파라미터 이름 하나여야 합니다.")
+    if not isinstance(cookie, dict) or not all(
+        isinstance(key, str) and isinstance(value, str) for key, value in cookie.items()
+    ):
+        raise ValueError("cookie는 쿠키 이름과 값을 문자열로 담은 딕셔너리여야 합니다.")
+
+    # GET URL에 같은 파라미터가 이미 있으면 제거해 중복 전달을 막습니다.
+    # 다른 쿼리 파라미터는 유지하고, POST에서는 원래 URL을 그대로 사용합니다.
+    target_url = url
+    if method == "GET":
+        query = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
+                 if key != parameters]
+        target_url = urlunsplit(parts._replace(query=urlencode(query)))
+    scanner = Scanner({"base_url": f"{parts.scheme}://{parts.netloc}",
+                       "timeout": 10, "delay": 0.2, "result_selector": "tbody"})
+    try:
+        # 이 호출에서만 쓰는 세션입니다. 쿠키는 결과나 로그에 포함하지 않습니다.
+        scanner.session.cookies.update(cookie)
+        target = {"path": target_url, "parameter": parameters, "method": method}
+        finding = scanner.scan(target, "SCAN-" + uuid.uuid4().hex[:12])
+        return format_finding(finding, url)
+    finally:
+        scanner.session.close()
 
 
 def main():
     parser = argparse.ArgumentParser(description="ROOKIESCAN SQL 인젝션 진단")
-    parser.add_argument("--config", default="config.json")
+    parser.add_argument("--config", default=str(Path(__file__).with_name("config.json")))
     parser.add_argument("--base-url", help="설정 파일의 base_url을 일시적으로 덮어씁니다.")
     parser.add_argument("--output", default="results/findings.json")
     args = parser.parse_args()
@@ -192,19 +280,22 @@ def main():
         for target in config["targets"]:
             findings.append({
                 "scan_id": scan_id, "category": "SQL Injection", "target_url": target["path"],
-                "method": "GET", "parameter": target["parameter"], "payload": None,
+                "method": target.get("method", "GET"), "parameter": target["parameter"], "payload": None,
                 "status_code": None, "result": "N/A", "severity": "INFO",
                 "evidence": str(exc), "remediation": REMEDIATION,
                 "details": {"phase": "login"}, "scanned_at": datetime.now(timezone.utc).isoformat(),
             })
     finally:
         scanner.session.close()
+    # 직접 로그인하는 테스트 모드도 통합 모드와 같은 JSON 형식으로 출력합니다.
+    findings = [format_finding(finding, urljoin(scanner.base, finding["target_url"]))
+                for finding in findings]
     output = json.dumps(findings, ensure_ascii=False, indent=2)
     destination = Path(args.output)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(output + "\n", encoding="utf-8")
     print(output)
-    return 2 if any(f["result"] == "N/A" for f in findings) else 0
+    return 2 if any(f["vuln"] == "N/A" for f in findings) else 0
 
 
 if __name__ == "__main__":

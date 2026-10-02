@@ -1,5 +1,21 @@
 # scanner.py 줄별 해설
 
+## 검사 순서 보강
+
+오류 취약 확정 시의 즉시 반환을 `break`로 바꿨습니다. 오류 검사 루프만 종료하고 Boolean 검사로 이어집니다. 루프의 `else`는 오류가 확정되지 않은 경우에만 error/confirmed=false를 추가합니다. 페이로드와 비교 기준은 변경하지 않았습니다.
+
+`boolean_started`는 Boolean 준비·검사 단계에서 발생한 ScanError를 구분합니다. 이 단계가 중단되면 boolean/confirmed=false/completed=false와 reason을 남깁니다. SAFE 설정과 evidence 덮어쓰기는 이미 VULNERABLE인 경우 건너뜁니다. Boolean에서도 취약이 확인되면 기존 오류 증거에 설명을 덧붙이고 반환합니다. 아래 원래 줄별 설명에서 오류 확정 후 즉시 반환과 무조건 SAFE/evidence 갱신을 설명한 부분은 이 변경 사항으로 대체합니다.
+
+## 통합 인터페이스 추가 사항
+
+아래 기존 해설의 `finding["result"]`는 **내부 판정 자료 구조**입니다. 외부 run() 반환값과 CLI 출력에서는 `vuln`으로 변환합니다.
+
+- `fetch()`의 `method`, `request_data`, `options`: GET은 params, POST는 data로 입력 위치만 선택합니다. 이후 탐지 로직은 유지합니다.
+- `format_finding()`: 기존 판정 문자열을 vuln에, payload/status_code/evidence 및 details의 checks를 result 객체에 담습니다. 추가 메타데이터는 최상위에 유지합니다.
+- `run(url, method, parameters, cookie)`: 입력 타입을 검사하고, GET의 중복 점검 파라미터를 제거하고, 독립적인 세션에 외부 쿠키를 넣습니다. 기존 scan() 호출 → 공통 출력 변환 → 세션 종료 순서입니다. 로그인·파일 저장·print는 하지 않습니다.
+- `main()`: 기존 직접 로그인 흐름을 유지하고 저장 직전에 format_finding()을 적용합니다. 종료 코드도 result 대신 vuln을 확인합니다. config 기본 경로는 scanner.py 옆으로 고정했습니다.
+- 사용 예제와 POST 제약은 README의 ‘통합용 함수’를 참고하세요. 아래 기존 main 설명 중 출력 전 변환 단계와 종료 코드 필드는 이 변경 사항을 우선합니다.
+
 코드에 나오는 순서대로 설명합니다. 빈 줄은 가독성을 위한 것이고 `#`는 실행되지 않는 한국어 주석입니다. 여러 줄에 걸친 함수 호출·딕셔너리의 닫는 괄호는 해당 문장을 끝냅니다. 아래에서 이러한 괄호와 주석은 해당 문장에 묶어 설명합니다.
 
 ## 먼저 알아둘 문법
