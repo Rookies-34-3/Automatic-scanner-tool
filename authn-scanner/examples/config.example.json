@@ -1,0 +1,43 @@
+{
+  "base_url": "http://127.0.0.1:8080",
+  "authentication": {
+    "type": "form_session",
+    "login_path": "/login",
+    "login_method": "POST",
+    "username_field": "userId",
+    "password_field": "password",
+    "csrf_field": "csrf_token",
+    "csrf_source_path": "/login",
+    "session_cookie_name": "sslc_lab_session",
+    "verify_path": "/my-class/pbl",
+    "logout": {
+      "path": "/logout",
+      "method": "POST",
+      "csrf_field": "csrf_token",
+      "csrf_source_path": "/my-class/pbl"
+    }
+  },
+  "valid_credential": {
+    "username": "admin",
+    "password_env": "SSLC_LAB_PASSWORD"
+  },
+  "tests": [
+    {
+      "name": "관리자 페이지 인증 누락",
+      "method": "GET",
+      "path": "/admin",
+      "required_markers": [
+        "관리자 대시보드",
+        "최근 문의"
+      ]
+    },
+    {
+      "name": "PBL 페이지 인증 보호 확인",
+      "method": "GET",
+      "path": "/my-class/pbl",
+      "required_markers": [
+        "PBL"
+      ]
+    }
+  ]
+}

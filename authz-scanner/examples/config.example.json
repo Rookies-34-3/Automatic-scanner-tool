@@ -1,0 +1,58 @@
+{
+  "base_url": "http://127.0.0.1:8080",
+  "authentication": {
+    "type": "form_session",
+    "login_path": "/login",
+    "login_method": "POST",
+    "username_field": "userId",
+    "password_field": "password",
+    "csrf_field": "csrf_token",
+    "csrf_source_path": "/login",
+    "session_cookie_name": "sslc_lab_session",
+    "verify_path": "/my-class/pbl"
+  },
+  "accounts": {
+    "owner": {
+      "username": "student1",
+      "password_env": "SSLC_LAB_PASSWORD"
+    },
+    "other_user": {
+      "username": "student2",
+      "password_env": "SSLC_LAB_PASSWORD"
+    }
+  },
+  "tests": [
+    {
+      "name": "사용자 프로필 IDOR",
+      "method": "GET",
+      "path": "/api/profiles/{user_id}",
+      "owner_account": "owner",
+      "attacker_account": "other_user",
+      "discovery": {
+        "path": "/",
+        "regex": "href=\"/mypage/my-information/(?P<user_id>\\d+)\"",
+        "variable": "user_id"
+      },
+      "sensitive_fields": [
+        "user_id",
+        "username",
+        "email",
+        "phone"
+      ],
+      "check_anonymous": true
+    },
+    {
+      "name": "비밀 문의 권한 검증 누락",
+      "method": "GET",
+      "path": "/customer/contact/{inquiry_id}",
+      "owner_account": "owner",
+      "attacker_account": "other_user",
+      "discovery": {
+        "path": "/customer/contact",
+        "regex": "href=\"/customer/contact/(?P<inquiry_id>\\d+)",
+        "variable": "inquiry_id"
+      },
+      "check_anonymous": true
+    }
+  ]
+}
