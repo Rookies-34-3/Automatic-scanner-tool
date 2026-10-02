@@ -17,9 +17,11 @@
 - `target.base_url`: 검사 대상 URL
 - `execution`: 병렬 실행, 제한 시간, 결과 폴더
 - `scanners[].config`: 기존 스캐너 설정 파일
-- `scanners[].endpoints`: 스캐너별 점검 엔드포인트와 필수 파라미터
+- `scanners[].endpoints`: `url`, `method`, `parameters`로 통일된 점검 입력
 
-공통 설정의 URL과 엔드포인트가 각 스캐너의 실행용 설정을 덮어씁니다. 로그인 계정 구조, CSRF 정보 등 취약점별 세부 설정은 기존 설정 파일을 재사용합니다.
+공통 엔드포인트 객체에는 위 세 필드 이외의 값을 넣지 않습니다. 로그인 계정 구조, CSRF 정보, 민감 필드, 객체 탐색 규칙 등 취약점별 세부 설정은 기존 스캐너 config를 재사용하고, 어댑터가 URL의 경로와 파라미터를 기존 설정에 결합합니다.
+
+정확한 입력 규격은 `endpoint-input.schema.json`, 출력 발견 항목 규격은 `finding-output.schema.json`을 기준으로 합니다.
 
 ## 실행
 
@@ -38,7 +40,7 @@ AWS 시연 환경은 학생 2가 소유한 비밀 문의 테스트 데이터까�
 python -m pipeline --config pipeline/config.aws.json --authorized --no-fail-on-findings
 ```
 
-다른 허가된 서버에서 같은 엔드포인트 구성을 검사할 때는 `--base-url`로 URL만 덮어쓸 수도 있습니다.
+다른 허가된 서버를 검사하려면 `target.base_url`과 각 `endpoints[].url`을 같은 origin으로 변경합니다.
 
 일부 스캐너만 실행할 수도 있습니다.
 
@@ -62,5 +64,7 @@ python -m pipeline --config pipeline/config.example.json --authorized --only aut
 - `PASS`: 실행한 점검 범위에서 차단 또는 증거 미탐지
 - `REVIEW`: 자동 판정이 어려워 수동 확인 필요
 - `ERROR`: 설정, 의존성, 통신 또는 실행 오류
+
+각 발견 결과의 필드는 `scanner_id`, `name`, `url`, `method`, `parameters`, `result`, `severity`, `reason`, `details`로 통일합니다. 기존 스캐너의 추가 증거는 `details`에 보존합니다.
 
 현재 `ai_analysis`는 연결 지점만 마련되어 있으며 `NOT_CONFIGURED`로 출력됩니다. 팀에서 AI 제공자와 입력 데이터 정책을 결정한 뒤 공통 분석 모듈을 이 단계에 연결하면 됩니다.

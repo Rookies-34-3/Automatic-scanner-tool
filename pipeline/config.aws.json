@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "target": {
     "base_url": "http://13.125.233.51"
   },
@@ -13,12 +13,46 @@
     {
       "id": "authn",
       "enabled": true,
-      "config": "authn-scanner/examples/config.aws.json"
+      "config": "authn-scanner/examples/config.aws.json",
+      "endpoints": [
+        {
+          "url": "http://13.125.233.51/admin",
+          "method": "GET",
+          "parameters": []
+        },
+        {
+          "url": "http://13.125.233.51/my-class/pbl",
+          "method": "GET",
+          "parameters": []
+        }
+      ]
     },
     {
       "id": "authz",
       "enabled": true,
-      "config": "authz-scanner/examples/config.aws.json"
+      "config": "authz-scanner/examples/config.aws.json",
+      "endpoints": [
+        {
+          "url": "http://13.125.233.51/api/profiles/{user_id}",
+          "method": "GET",
+          "parameters": [
+            {
+              "name": "user_id",
+              "location": "path"
+            }
+          ]
+        },
+        {
+          "url": "http://13.125.233.51/customer/contact/{inquiry_id}",
+          "method": "GET",
+          "parameters": [
+            {
+              "name": "inquiry_id",
+              "location": "path"
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "sqli",
@@ -26,12 +60,24 @@
       "config": "sqli/config.json",
       "endpoints": [
         {
-          "path": "/my-class/board/qna",
-          "parameter": "content"
+          "url": "http://13.125.233.51/my-class/board/qna",
+          "method": "GET",
+          "parameters": [
+            {
+              "name": "content",
+              "location": "query"
+            }
+          ]
         },
         {
-          "path": "/my-class/board/notice",
-          "parameter": "content"
+          "url": "http://13.125.233.51/my-class/board/notice",
+          "method": "GET",
+          "parameters": [
+            {
+              "name": "content",
+              "location": "query"
+            }
+          ]
         }
       ]
     }

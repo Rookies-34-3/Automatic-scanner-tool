@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rookiescan.local/schemas/endpoint-input.schema.json",
+  "title": "ROOKIESCAN Common Endpoint Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["url", "method", "parameters"],
+  "properties": {
+    "url": {
+      "type": "string",
+      "format": "uri-template",
+      "pattern": "^https?://"
+    },
+    "method": {
+      "type": "string",
+      "enum": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "location"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "location": {
+            "type": "string",
+            "enum": ["path", "query", "body", "header"]
+          }
+        }
+      }
+    }
+  }
+}

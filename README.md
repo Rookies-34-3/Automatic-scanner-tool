@@ -93,9 +93,8 @@ python scanner.py --config config.example.json --output results/findings.json
 ## 공통 입력 원칙
 
 - 점검 방식: 블랙박스 방식 우선
-- 입력 단위: 단순 URL보다 엔드포인트 우선
-- 공통 항목: 대상 URL, HTTP Method, 경로, 파라미터
-- 취약점별 추가 항목: 로그인 정보 구조, 객체 ID 탐색 규칙, 응답 선택자 등
+- 공통 엔드포인트 입력에는 `url`, `method`, `parameters` 세 필드만 사용
+- 로그인 정보, 객체 ID 탐색 규칙, 민감 필드 등은 각 스캐너의 기존 config에 유지
 - 비밀정보: 설정 파일에 값을 넣지 않고 환경변수로 전달
 
 공통 설정 예시:
@@ -112,8 +111,14 @@ python scanner.py --config config.example.json --output results/findings.json
       "config": "sqli/config.json",
       "endpoints": [
         {
-          "path": "/my-class/board/qna",
-          "parameter": "content"
+          "url": "http://127.0.0.1:8080/my-class/board/qna",
+          "method": "GET",
+          "parameters": [
+            {
+              "name": "content",
+              "location": "query"
+            }
+          ]
         }
       ]
     }
@@ -153,6 +158,29 @@ python scanner.py --config config.example.json --output results/findings.json
 ```
 
 각 스캐너의 기존 결과 형식이 달라도 괜찮습니다. 원본 스캐너를 크게 수정하지 않고 `pipeline/runner.py`에서 공통 형식으로 변환합니다.
+
+각 `finding`은 최소한 다음 공통 필드를 가집니다.
+
+```json
+{
+  "scanner_id": "sqli",
+  "name": "SQL Injection /my-class/board/qna",
+  "url": "http://127.0.0.1:8080/my-class/board/qna",
+  "method": "GET",
+  "parameters": [
+    {
+      "name": "content",
+      "location": "query"
+    }
+  ],
+  "result": "VULNERABLE",
+  "severity": "HIGH",
+  "reason": "판정 근거",
+  "details": {}
+}
+```
+
+스캐너마다 다른 추가 증거는 공통 필드를 깨뜨리지 않도록 `details`에 보존합니다.
 
 ## 통합 담당자의 연결 절차
 

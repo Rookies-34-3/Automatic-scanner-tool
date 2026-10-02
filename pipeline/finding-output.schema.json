@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rookiescan.local/schemas/finding-output.schema.json",
+  "title": "ROOKIESCAN Common Finding Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scanner_id",
+    "name",
+    "url",
+    "method",
+    "parameters",
+    "result",
+    "severity",
+    "reason",
+    "details"
+  ],
+  "properties": {
+    "scanner_id": {"type": "string"},
+    "name": {"type": "string"},
+    "url": {"type": "string", "format": "uri-template", "pattern": "^https?://"},
+    "method": {"type": "string"},
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "location"],
+        "properties": {
+          "name": {"type": "string"},
+          "location": {
+            "type": "string",
+            "enum": ["path", "query", "body", "header"]
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "string",
+      "enum": ["VULNERABLE", "PASS", "REVIEW", "ERROR"]
+    },
+    "severity": {"type": "string"},
+    "reason": {"type": "string"},
+    "details": {"type": "object"}
+  }
+}

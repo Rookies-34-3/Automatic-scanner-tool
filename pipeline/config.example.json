@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "target": {
     "base_url": "http://127.0.0.1:8080"
   },
@@ -16,16 +16,14 @@
       "config": "authn-scanner/examples/config.example.json",
       "endpoints": [
         {
-          "name": "관리자 페이지 인증 누락",
+          "url": "http://127.0.0.1:8080/admin",
           "method": "GET",
-          "path": "/admin",
-          "required_markers": ["관리자 대시보드", "최근 문의"]
+          "parameters": []
         },
         {
-          "name": "PBL 페이지 인증 보호 확인",
+          "url": "http://127.0.0.1:8080/my-class/pbl",
           "method": "GET",
-          "path": "/my-class/pbl",
-          "required_markers": ["PBL"]
+          "parameters": []
         }
       ]
     },
@@ -35,31 +33,24 @@
       "config": "authz-scanner/examples/config.example.json",
       "endpoints": [
         {
-          "name": "사용자 프로필 IDOR",
+          "url": "http://127.0.0.1:8080/api/profiles/{user_id}",
           "method": "GET",
-          "path": "/api/profiles/{user_id}",
-          "owner_account": "owner",
-          "attacker_account": "other_user",
-          "discovery": {
-            "path": "/",
-            "regex": "href=\"/mypage/my-information/(?P<user_id>\\d+)\"",
-            "variable": "user_id"
-          },
-          "sensitive_fields": ["user_id", "username", "email", "phone"],
-          "check_anonymous": true
+          "parameters": [
+            {
+              "name": "user_id",
+              "location": "path"
+            }
+          ]
         },
         {
-          "name": "비밀 문의 권한 검증 누락",
+          "url": "http://127.0.0.1:8080/customer/contact/{inquiry_id}",
           "method": "GET",
-          "path": "/customer/contact/{inquiry_id}",
-          "owner_account": "owner",
-          "attacker_account": "other_user",
-          "discovery": {
-            "path": "/customer/contact",
-            "regex": "href=\"/customer/contact/(?P<inquiry_id>\\d+)",
-            "variable": "inquiry_id"
-          },
-          "check_anonymous": true
+          "parameters": [
+            {
+              "name": "inquiry_id",
+              "location": "path"
+            }
+          ]
         }
       ]
     },
@@ -69,12 +60,24 @@
       "config": "sqli/config.json",
       "endpoints": [
         {
-          "path": "/my-class/board/qna",
-          "parameter": "content"
+          "url": "http://127.0.0.1:8080/my-class/board/qna",
+          "method": "GET",
+          "parameters": [
+            {
+              "name": "content",
+              "location": "query"
+            }
+          ]
         },
         {
-          "path": "/my-class/board/notice",
-          "parameter": "content"
+          "url": "http://127.0.0.1:8080/my-class/board/notice",
+          "method": "GET",
+          "parameters": [
+            {
+              "name": "content",
+              "location": "query"
+            }
+          ]
         }
       ]
     }

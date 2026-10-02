@@ -4,6 +4,7 @@ import argparse
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -12,9 +13,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 
-PIPELINE_VERSION = "1.0.0"
+PIPELINE_VERSION = "1.1.0"
 RESULT_VALUES = {"VULNERABLE", "PASS", "REVIEW", "ERROR"}
 ADAPTERS = {
     "authn": {
@@ -81,6 +83,81 @@ def required_secret_names(scanner_id: str, scanner_config: dict[str, Any]) -> se
     return names
 
 
+def common_parameter_names(parameters: list[Any], location: str | None = None) -> list[str]:
+    names: list[str] = []
+    for parameter in parameters:
+        if isinstance(parameter, str):
+            name = parameter
+            parameter_location = "query"
+        elif isinstance(parameter, dict):
+            name = str(parameter.get("name", ""))
+            parameter_location = str(parameter.get("location", "query"))
+        else:
+            continue
+        if name and (location is None or parameter_location == location):
+            names.append(name)
+    return names
+
+
+def adapt_endpoints(
+    scanner_id: str,
+    endpoints: list[dict[str, Any]],
+    target_base_url: str,
+    existing_endpoints: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Translate the common endpoint shape into an existing scanner's native config."""
+    target_origin = urlsplit(target_base_url)
+    existing_by_path = {
+        str(item.get("path")): copy.deepcopy(item)
+        for item in existing_endpoints
+        if isinstance(item, dict) and item.get("path")
+    }
+    adapted: list[dict[str, Any]] = []
+    for index, endpoint in enumerate(endpoints, start=1):
+        if not isinstance(endpoint, dict):
+            raise PipelineConfigError(f"{scanner_id}: endpoints[{index}]는 객체여야 합니다.")
+        allowed_fields = {"url", "method", "parameters"}
+        unexpected = sorted(set(endpoint) - allowed_fields)
+        if unexpected:
+            raise PipelineConfigError(
+                f"{scanner_id}: endpoints[{index}] 공통 입력에는 url, method, parameters만 허용됩니다: "
+                + ", ".join(unexpected)
+            )
+        url = str(endpoint.get("url", ""))
+        parsed_url = urlsplit(url)
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            raise PipelineConfigError(f"{scanner_id}: endpoints[{index}].url은 전체 http(s) URL이어야 합니다.")
+        if (parsed_url.scheme, parsed_url.netloc) != (target_origin.scheme, target_origin.netloc):
+            raise PipelineConfigError(f"{scanner_id}: endpoints[{index}].url은 target과 같은 origin이어야 합니다.")
+        path = parsed_url.path or "/"
+        if not path.startswith("/"):
+            raise PipelineConfigError(f"{scanner_id}: endpoints[{index}].url 경로가 올바르지 않습니다.")
+        method = str(endpoint.get("method", "GET")).upper()
+        parameters = endpoint.get("parameters", [])
+        if not isinstance(parameters, list):
+            raise PipelineConfigError(f"{scanner_id}: endpoints[{index}].parameters는 배열이어야 합니다.")
+
+        native = existing_by_path.get(path, {"name": f"{scanner_id} {path}", "path": path})
+        native["method"] = method
+        native["path"] = path
+
+        if scanner_id == "sqli":
+            query_parameters = common_parameter_names(parameters, "query")
+            if len(query_parameters) != 1:
+                raise PipelineConfigError(
+                    f"sqli: endpoints[{index}]에는 query parameters가 정확히 한 개 필요합니다."
+                )
+            adapted.append({"path": path, "parameter": query_parameters[0]})
+            continue
+
+        if scanner_id == "authz" and not {"owner_account", "attacker_account"}.issubset(native):
+            raise PipelineConfigError(
+                f"authz: {path}의 계정·객체 탐색 규칙은 기존 스캐너 config에 정의되어야 합니다."
+            )
+        adapted.append(native)
+    return adapted
+
+
 def prepare_runtime_config(
     repo_root: Path,
     runtime_dir: Path,
@@ -105,7 +182,13 @@ def prepare_runtime_config(
         endpoints = entry["endpoints"]
         if not isinstance(endpoints, list) or not endpoints:
             raise PipelineConfigError(f"{scanner_id}: endpoints는 비어 있지 않은 배열이어야 합니다.")
-        scanner_config[str(adapter["endpoint_key"])] = endpoints
+        endpoint_key = str(adapter["endpoint_key"])
+        existing_endpoints = scanner_config.get(endpoint_key, [])
+        if not isinstance(existing_endpoints, list):
+            raise PipelineConfigError(f"{scanner_id}: 기존 {endpoint_key} 설정이 배열이 아닙니다.")
+        scanner_config[endpoint_key] = adapt_endpoints(
+            scanner_id, endpoints, target_base_url, existing_endpoints
+        )
 
     missing = sorted(name for name in required_secret_names(scanner_id, scanner_config) if not os.environ.get(name))
     if missing:
@@ -143,22 +226,59 @@ def summarize(findings: list[dict[str, Any]]) -> dict[str, int]:
     return summary
 
 
-def normalize_finding(scanner_id: str, finding: dict[str, Any]) -> dict[str, Any]:
-    item = copy.deepcopy(finding)
-    original_result = item.get("result")
-    item["result"] = normalize_status(original_result)
-    item["scanner_id"] = scanner_id
-    if "path" not in item and item.get("target_url"):
-        item["path"] = item["target_url"]
-    if "reason" not in item and item.get("evidence") is not None:
-        item["reason"] = item["evidence"]
-    if "name" not in item:
-        category = item.get("category", scanner_id)
-        path = item.get("path", "")
-        item["name"] = f"{category} {path}".strip()
-    if original_result is not None and str(original_result).upper() != item["result"]:
-        item["source_result"] = original_result
-    return item
+def finding_parameters(finding: dict[str, Any], path: str) -> list[dict[str, str]]:
+    parameters: list[dict[str, str]] = []
+    supplied = finding.get("parameters")
+    if isinstance(supplied, list):
+        for parameter in supplied:
+            if isinstance(parameter, str):
+                parameters.append({"name": parameter, "location": "query"})
+            elif isinstance(parameter, dict) and parameter.get("name"):
+                parameters.append({
+                    "name": str(parameter["name"]),
+                    "location": str(parameter.get("location", "query")),
+                })
+    elif finding.get("parameter"):
+        parameters.append({"name": str(finding["parameter"]), "location": "query"})
+
+    existing = {(item["name"], item["location"]) for item in parameters}
+    for name in re.findall(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", path):
+        if (name, "path") not in existing:
+            parameters.append({"name": name, "location": "path"})
+    return parameters
+
+
+def normalize_finding(
+    scanner_id: str,
+    finding: dict[str, Any],
+    target: str,
+) -> dict[str, Any]:
+    source = copy.deepcopy(finding)
+    original_result = source.get("result")
+    result = normalize_status(original_result)
+    path = str(source.get("path") or source.get("target_url") or "/")
+    url = path if path.startswith(("http://", "https://")) else target.rstrip("/") + "/" + path.lstrip("/")
+    reason = str(source.get("reason") or source.get("evidence") or "판정 근거가 제공되지 않았습니다.")
+    name = str(source.get("name") or f"{source.get('category', scanner_id)} {path}".strip())
+
+    common_keys = {
+        "name", "url", "path", "target_url", "method", "parameters", "parameter",
+        "result", "severity", "reason", "evidence",
+    }
+    details = {key: value for key, value in source.items() if key not in common_keys}
+    if original_result is not None and str(original_result).upper() != result:
+        details["source_result"] = original_result
+    return {
+        "scanner_id": scanner_id,
+        "name": name,
+        "url": url,
+        "method": str(source.get("method", "GET")).upper(),
+        "parameters": finding_parameters(source, path),
+        "result": result,
+        "severity": str(source.get("severity", "NONE")),
+        "reason": reason,
+        "details": details,
+    }
 
 
 def normalize_result(scanner_id: str, raw: Any, target: str) -> dict[str, Any]:
@@ -177,7 +297,11 @@ def normalize_result(scanner_id: str, raw: Any, target: str) -> dict[str, Any]:
 
     if not isinstance(source_findings, list):
         raise PipelineConfigError(f"{scanner_id}: findings는 배열이어야 합니다.")
-    findings = [normalize_finding(scanner_id, item) for item in source_findings if isinstance(item, dict)]
+    findings = [
+        normalize_finding(scanner_id, item, target)
+        for item in source_findings
+        if isinstance(item, dict)
+    ]
     return {
         "scanner_id": scanner_id,
         "tool": tool,
@@ -193,9 +317,13 @@ def error_result(scanner_id: str, target: str, reason: str) -> dict[str, Any]:
     finding = {
         "scanner_id": scanner_id,
         "name": f"{scanner_id} 실행 오류",
+        "url": target,
+        "method": "GET",
+        "parameters": [],
         "result": "ERROR",
         "severity": "NONE",
         "reason": reason,
+        "details": {},
     }
     return {
         "scanner_id": scanner_id,
@@ -287,7 +415,11 @@ def run_scanner(
         return error_result(scanner_id or "unknown", target, str(exc))
 
 
-def aggregate_results(scan_id: str, target: str, results: list[dict[str, Any]]) -> dict[str, Any]:
+def aggregate_results(
+    scan_id: str,
+    target: str,
+    results: list[dict[str, Any]],
+) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
     for result in results:
         findings.extend(result.get("findings", []))
@@ -303,7 +435,7 @@ def aggregate_results(scan_id: str, target: str, results: list[dict[str, Any]]) 
     return {
         "pipeline": "ROOKIESCAN",
         "pipeline_version": PIPELINE_VERSION,
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "scan_id": scan_id,
         "generated_at": utc_now(),
         "target": target,
@@ -343,6 +475,9 @@ def load_pipeline_config(path: Path) -> dict[str, Any]:
         scanner_id = str(entry["id"])
         if scanner_id not in ADAPTERS:
             raise PipelineConfigError(f"어댑터가 없는 스캐너입니다: {scanner_id}")
+        endpoints = entry.get("endpoints")
+        if not isinstance(endpoints, list) or not endpoints:
+            raise PipelineConfigError(f"{scanner_id}: 공통 endpoints 입력이 필요합니다.")
         scanner_ids.append(scanner_id)
     if len(scanner_ids) != len(set(scanner_ids)):
         raise PipelineConfigError("scanner id는 중복될 수 없습니다.")
@@ -352,7 +487,6 @@ def load_pipeline_config(path: Path) -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ROOKIESCAN 공통 스캐너 파이프라인")
     parser.add_argument("--config", required=True, help="공통 파이프라인 설정 JSON")
-    parser.add_argument("--base-url", help="공통 설정의 target.base_url을 일시적으로 덮어씀")
     parser.add_argument("--authorized", action="store_true", help="허가된 대상임을 확인")
     parser.add_argument("--only", help="실행할 스캐너 ID(쉼표 구분)")
     parser.add_argument("--sequential", action="store_true", help="병렬 실행 대신 순차 실행")
@@ -369,7 +503,7 @@ def main() -> None:
         config_path = Path(args.config).resolve()
         repo_root = Path(__file__).resolve().parents[1]
         config = load_pipeline_config(config_path)
-        target = str(args.base_url or config["target"]["base_url"]).rstrip("/")
+        target = str(config["target"]["base_url"]).rstrip("/")
         if not target.startswith(("http://", "https://")):
             raise PipelineConfigError("base URL은 http 또는 https로 시작해야 합니다.")
         execution = config.get("execution", {})
