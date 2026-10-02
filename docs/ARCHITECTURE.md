@@ -8,6 +8,7 @@ Automatic-scanner-tool/
 ├─ sink_finder.py
 ├─ openai_module.py
 ├─ report_writer.py
+├─ module/                  # 취약점 검사 function tool
 ├─ docs/
 └─ output/
 ```
@@ -22,7 +23,7 @@ Streamlit에서 URL·세션 정보 입력
                 ↓
 sink_finder가 URL·메서드·파라미터·Sink 후보를 JSON으로 반환
                 ↓
-openai_module이 Sink에 맞는 SQLi·XSS 등 기존 검사 함수를 function call로 선택
+openai_module이 Sink에 맞는 module/의 검사 함수를 function call로 선택
                 ↓
 각 검사 함수가 결과 반환
                 ↓
@@ -46,9 +47,9 @@ sink_candidates
 
 ### `openai_module.py`
 
-Sink 결과와 현재 브랜치에서 import 가능한 취약점 검사 함수 목록을 OpenAI에 전달한다.
-OpenAI의 function call 결과에 따라 SQLi, XSS, File I/O 등의 함수를 호출하고 결과를
-모은다. 다른 브랜치의 파일은 먼저 `main`에 병합하거나 선택적으로 가져와야 한다.
+Sink 결과와 `module/`에서 import한 취약점 검사 함수 목록을 OpenAI에 전달한다. OpenAI의
+function call 결과에 따라 SQLi, XSS, File I/O 등의 함수를 애플리케이션에서 실행하고
+결과를 모은다. 다른 브랜치의 파일은 먼저 `module/`로 가져와야 한다.
 
 ### `report_writer.py`
 
@@ -62,5 +63,6 @@ OpenAI의 function call 결과에 따라 SQLi, XSS, File I/O 등의 함수를 �
 ## 현재 범위
 
 - 세 모듈을 Streamlit 진입점과 같은 위치에 생성
-- SQLi, XSS 등 다른 브랜치의 코드는 아직 병합하지 않음
+- 취약점 검사 function tool을 둘 `module/` 폴더 생성
+- SQLi, XSS 등 다른 브랜치의 코드는 아직 가져오지 않음
 - Sink 탐색, OpenAI 호출, 보고서 작성은 아직 구현하지 않음
