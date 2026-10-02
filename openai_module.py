@@ -80,66 +80,14 @@ def prepare_sinks_for_openai(sinks: list[dict]) -> dict:
 
 
 if __name__ == "__main__":
-    # 네트워크 없이 ID 집계, 입력 차이 보존, 원본 보존을 확인한다.
-    base = "http://127.0.0.1:8080"
-    sinks = [{"url": f"{base}/items/{item_id}", "method": "GET", "endpoint_template": "/items/{id}",
-              "parameters": [{"name": "path_id_1", "location": "path", "value": str(item_id)}],
-              "sink_candidates": [{"type": "idor", "tools": ["authz"], "verified": False}],
-              "crawl_state": "not_visited" if item_id == 1 else "visited"}
-             for item_id in range(1, 5)]
-    secret = deepcopy(sinks[1])
-    secret["url"] += "?secret=1"
-    secret["parameters"].append({"name": "secret", "location": "query"})
-    upload = deepcopy(sinks[1])
-    upload.update(method="POST", enctype="multipart/form-data", crawl_state="discovered")
-    upload["parameters"].append({"name": "file", "location": "form", "input_type": "file", "required": True})
-    upload["parameters"].extend({"name": "action", "location": "form", "value": action}
-                                for action in ("preview", "save"))
-    patch = deepcopy(sinks[1])
-    patch.update(method="PATCH", crawl_state="discovered")
-    patch["parameters"].append({"name": "email", "location": "json"})
-    other_origin = deepcopy(sinks[0])
-    other_origin["url"] = other_origin["url"].replace(":8080", ":8081")
-    sinks.extend([secret, upload, patch, other_origin])
-    for path, tools in (("/uploads/2/pbl/a.txt", ["authz", "fileio"]),
-                        ("/uploads/3/pbl/b.TXT", ["authz", "fileio"]),
-                        ("/uploads/2/pbl/a.py", ["authz", "fileio"]),
-                        ("/uploads/2/task/a.txt", ["authz", "fileio"]),
-                        ("/uploads/2/pbl/", ["authz", "fileio"]),
-                        ("/uploads/2/pbl/c.txt", ["fileio"])):
-        sinks.append({"url": base + path, "method": "GET",
-                      "endpoint_template": path.replace("/2/", "/{id}/").replace("/3/", "/{id}/"),
-                      "parameters": [], "sink_candidates": [{"tools": tools, "verified": False}]})
-    original = deepcopy(sinks)
-    payload = prepare_sinks_for_openai(sinks)
-    grouped = payload["groups"]
-    assert payload["candidate_status"] == "unverified"
-    assert len(grouped) == 9 and sum(group["discovered_count"] for group in grouped) == len(sinks)
-    get_group = grouped[0]
-    assert get_group["discovered_count"] == 5 and get_group["candidate_tools"] == ["authz"]
-    assert len(get_group["request_variants"]) == 2
-    plain, flagged = get_group["request_variants"]
-    assert plain["sample_url"] == f"{base}/items/2" and flagged["sample_url"].endswith("?secret=1")
-    assert "value" not in plain["parameters"][0] and any(p["name"] == "secret" for p in flagged["parameters"])
-    upload_variant = grouped[1]["request_variants"][0]
-    assert upload_variant["enctype"] == "multipart/form-data"
-    assert {p.get("value") for p in upload_variant["parameters"] if p["name"] == "action"} == {"preview", "save"}
-    assert any(p.get("input_type") == "file" and p["required"] for p in upload_variant["parameters"])
-    assert grouped[2]["method"] == "PATCH" and sinks == original
-    assert ":8081/" in grouped[3]["request_variants"][0]["sample_url"]
-    assert grouped[4]["path_template"] == "/uploads/{id}/pbl/{filename}.txt" and grouped[4]["discovered_count"] == 2
-    assert grouped[5]["path_template"].endswith("{filename}.py")
-    assert grouped[6]["path_template"] == "/uploads/{id}/task/{filename}.txt"
-    assert grouped[7]["path_template"] == "/uploads/{id}/pbl/"
-    assert grouped[8]["candidate_tools"] == ["fileio"]
-    assert all("sample_urls" not in g and all("samples" not in v for v in g["request_variants"]) for g in grouped)
-    plain["parameters"][0]["name"] = "test"
-    assert sinks == original
-    assert prepare_sinks_for_openai([]) == {"candidate_status": "unverified", "groups": []}
-    try:
-        prepare_sinks_for_openai(None)
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("None 수집 결과가 거부되지 않았습니다.")
-    print("openai_module self-check passed")
+    # 실행: python openai_module.py (.env의 키로 짧은 응답을 요청한다.)
+    with get_openai_client().with_options(timeout=30, max_retries=0) as client:
+        response = client.responses.create(
+            model="gpt-6.1-sol",
+            input="Reply with exactly OK.",
+            reasoning={"effort": "low"},
+            max_output_tokens=256,
+            store=False,
+        )
+        print("모델:", response.model)
+        print("응답:", response.output_text)

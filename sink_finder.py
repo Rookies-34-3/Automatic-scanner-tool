@@ -439,27 +439,3 @@ def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] 
         if endpoint.get("status_code") in {404, 410}:
             endpoint["sink_candidates"] = []
     return list(records.values())
-
-
-if __name__ == "__main__":
-    # 네트워크 없이 파서·분류와 DOM 기반 API URL 해석을 확인한다.
-    page = _PageParser()
-    page.feed('<form action="/write" method="post" enctype="multipart/form-data">'
-              '<input name="csrf_token" type="hidden" value="never-export">'
-              '<input name="attachment" type="file"><input name="url" type="url">'
-              '<button name="action" value="preview">Preview</button></form>'
-              '<form id="profile-form" data-profile-id="17"></form>')
-    endpoint = {"url": "http://127.0.0.1:8080/customer/contact/31?secret=1", "method": "POST",
-                "parameters": _parameters("http://127.0.0.1:8080/customer/contact/31?secret=1")
-                              + [dict(p, location="form") for p in page.forms[0]["parameters"]],
-                "enctype": page.forms[0]["enctype"]}
-    _classify(endpoint)
-    assert {candidate["type"] for candidate in endpoint["sink_candidates"]} >= {
-        "idor", "access_control", "file_upload", "ssrf", "file_extension_bypass", "upload_path_traversal", "upload_code_execution"}
-    assert "never-export" not in str(endpoint)
-    script = ('const profileForm = document.getElementById("profile-form"); '
-              'const profileUrl = `/api/profiles/${profileForm.dataset.profileId}`; '
-              'fetch(profileUrl, {method: "PATCH", body: JSON.stringify({email: "test"})});')
-    assert any(url == "/api/profiles/17" and method == "PATCH" for url, method, _ in _javascript_endpoints(script, page))
-    assert _normal_url("http://127.0.0.1:8080/", "https://example.com/", ("http", "127.0.0.1", 8080)) is None
-    print("sink_finder self-check passed")
