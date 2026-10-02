@@ -1,11 +1,10 @@
 # ROOKIESCAN 통합 설계 안내
 
-`main` 브랜치는 Streamlit 입력, function call 기반 스캐너 선택, 모듈 결과 정규화,
-통합 보고서 생성을 위한 설계 기준을 정리한다. 이 단계에는 통합 실행 코드를 넣지 않았다.
+`main` 브랜치는 Streamlit 입력, Sink 탐색, OpenAI function call, 보고서 작성을 위한
+최소 구조만 정리한다. 이 단계에는 실행 코드를 넣지 않았다.
 
 - [통합 구조 설계](docs/ARCHITECTURE.md)
 - [보고서 형식 설계](docs/REPORT_SPEC.md)
-- [공통 데이터 계약](schemas/)
 
 현재 파일 업로드·다운로드 스캐너의 사용법은 아래에 유지한다.
 
