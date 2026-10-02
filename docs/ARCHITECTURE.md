@@ -5,18 +5,17 @@
 ```text
 Automatic-scanner-tool/
 ├─ streamlit_app.py
-├─ rookiescan/
-│  ├─ sink_finder.py
-│  ├─ openai_module.py
-│  └─ report_writer.py
+├─ sink_finder.py
+├─ openai_module.py
+├─ report_writer.py
 ├─ fileio_scanner/          # 현재 구현된 기존 모듈
 ├─ docs/
 ├─ targets/
 └─ output/
 ```
 
-현재는 위 세 모듈의 위치와 역할만 정한다. 별도 모델, 레지스트리, 어댑터, 스키마,
-테스트 계층은 만들지 않는다.
+현재는 Streamlit 옆에 위 세 모듈의 위치와 역할만 정한다. 별도 패키지, 모델,
+레지스트리, 어댑터, 스키마, 테스트 계층은 만들지 않는다.
 
 ## 흐름
 
@@ -49,8 +48,9 @@ sink_candidates
 
 ### `openai_module.py`
 
-Sink 결과와 사용 가능한 취약점 검사 함수 목록을 OpenAI에 전달한다. OpenAI의
-function call 결과에 따라 기존 SQLi, XSS, File I/O 등의 함수를 호출하고 결과를 모은다.
+Sink 결과와 현재 브랜치에서 import 가능한 취약점 검사 함수 목록을 OpenAI에 전달한다.
+OpenAI의 function call 결과에 따라 SQLi, XSS, File I/O 등의 함수를 호출하고 결과를
+모은다. 다른 브랜치의 파일은 먼저 `main`에 병합하거나 선택적으로 가져와야 한다.
 
 ### `report_writer.py`
 
@@ -63,7 +63,7 @@ function call 결과에 따라 기존 SQLi, XSS, File I/O 등의 함수를 호�
 
 ## 현재 범위
 
-- 세 모듈과 Streamlit 진입점의 파일 위치만 생성
+- 세 모듈을 Streamlit 진입점과 같은 위치에 생성
 - 기존 `fileio_scanner`는 그대로 유지
 - SQLi, XSS 등 다른 브랜치의 코드는 아직 병합하지 않음
 - 함수와 실행 로직은 아직 구현하지 않음
