@@ -1,0 +1,89 @@
+{
+  "_help": "========================================================================",
+  "_help_1": "fileio_scanner 타깃 설정 템플릿. 복사해서 targets/<이름>.json 으로 저장 후 수정.",
+  "_help_2": "'_' 로 시작하는 키는 설명용이며 코드가 무시합니다.",
+  "_help_3": "대부분의 필드는 비워두면 recon.py 가 자동 탐지합니다. 자동탐지가 틀릴 때만 채우세요.",
+  "_help_4": "========================================================================",
+
+  "target_name": "mysite",
+  "_comment_target_name": "결과 파일 이름에 쓰이는 식별자(자유). 예: output/mysite_result.json",
+
+  "base_url": "http://127.0.0.1:8080",
+  "_comment_base_url": "[필수] 대상 사이트 주소. 스킴 포함. 경로 없이 호스트까지만.",
+
+  "verify_tls": true,
+  "_comment_verify_tls": "[선택] 자체서명 HTTPS 면 false.",
+
+  "proxy": null,
+  "_comment_proxy": "[선택] Burp 등으로 트래픽 관찰 시 'http://127.0.0.1:8080'.",
+
+  "_help_minimal": "---- (A) 최소 설정: 아래 5개만 적으면 나머지는 자동 탐지 ----",
+
+  "login_path": "/login",
+  "_comment_login_path": "[필수] 로그인 폼이 POST 되는 경로. 로그인 페이지 <form action> 값.",
+
+  "credentials": {
+    "victim":   { "userId": "student1", "password": "Lab1234!" },
+    "attacker": { "userId": "student2", "password": "Lab1234!" },
+    "admin":    { "userId": "admin",    "password": "Lab1234!" }
+  },
+  "_comment_credentials": "[필수] 계정. victim=파일주인, attacker=낮은권한(IDOR기준), admin=권한상승표적. 키 이름(userId 등)은 자동탐지된 필드명으로 매핑됨.",
+
+  "upload_path": "/my-class/board/write/qna",
+  "_comment_upload_path": "[필수] 업로드 폼이 POST 되는 경로.",
+
+  "notice_path": "/my-class/board/write/notice",
+  "_comment_notice_path": "[선택] 관리자 전용 쓰기 경로. 있으면 접근제어 우회 테스트 수행.",
+
+  "_help_override": "---- (B) 수동 override: 자동탐지가 틀릴 때만, 필요한 블록만 추가 ----",
+  "_help_override_note": "아래 블록을 넣으면 자동탐지보다 '우선'합니다. 안 쓰면 통째로 지우세요.",
+
+  "_auth_example": {
+    "type": "form",
+    "login_path": "/login",
+    "csrf_field": "csrf_token",
+    "fields": { "userId": "student1", "password": "Lab1234!" },
+    "success_check_path": "/my-class/board/write/qna"
+  },
+  "_comment_auth": "로그인이 JS/API 기반이라 자동탐지 실패 시. '_auth_example' → 'auth' 로 키 이름 바꿔 사용. csrf 없으면 csrf_field:null. 비인증 대상이면 type:'none'. attacker_auth/admin_auth 도 동일 구조로 추가.",
+
+  "_upload_example": {
+    "path": "/api/upload",
+    "method": "POST",
+    "file_field": "attachment",
+    "csrf_field": null,
+    "csrf_from": "/upload",
+    "extra_fields": { "title": "scan", "body": "scan" },
+    "success_indicators": ["\"ok\":true", "/board/qna/"],
+    "allowed_extensions": [".png", ".jpg", ".pdf"],
+    "download_link_regex": "/files/[0-9a-f-]+"
+  },
+  "_comment_upload": "업로드 폼/필드 자동탐지가 틀릴 때. '_upload_example' → 'upload' 로 변경. success_indicators=업로드 성공을 나타내는 URL/본문 조각. allowed_extensions=서버가 허용한다고 표시하는 확장자.",
+
+  "_download_example": {
+    "url_template": "/download/{id}",
+    "id_range": [1, 100],
+    "id_max_scan": 100,
+    "traversal_template": "/download/{payload}"
+  },
+  "_comment_download": "다운로드가 POST거나 링크가 안 보여 자동탐지 실패 시. '_download_example' → 'download' 로 변경. {id}=열거할 숫자 자리, id_range=열거 범위, id_max_scan=열거 상한(기본100, DB 커져도 속도일정). 블록을 안 넣으면 다운로드 검사 생략(업로드만).",
+
+  "_access_controlled_example": {
+    "write_path": "/my-class/board/write/inquiry",
+    "csrf_from": "/my-class/board/write/inquiry",
+    "file_field": "file",
+    "extra_fields": { "title": "fio", "body": "secret" },
+    "private_fields": { "secret": "1" },
+    "download_link_regex": "/download/\\d+"
+  },
+  "_comment_access_controlled": "비밀글 IDOR(진짜 IDOR 확증) 테스트용. '_access_controlled_example' → 'access_controlled' 로 변경. victim 이 비공개 글+첨부를 만들고(private_fields 로 비공개 설정), attacker 가 '글은 못 보는데 첨부는 직접 ID로 받아지는지' 확인. 글 열람 불가+첨부 다운로드 성공이면 확실한 IDOR(VULNERABLE). 미설정이면 이 테스트는 SKIP.",
+
+  "_access_control_example": {
+    "restricted_path": "/my-class/board/write/notice",
+    "csrf_from": "/my-class/board/write/qna",
+    "file_field": "file",
+    "extra_fields": { "title": "fio", "body": "fio" },
+    "success_indicators": ["/board/notice/"]
+  },
+  "_comment_access_control": "notice_path 자동구성 대신 직접 지정하고 싶을 때. '_access_control_example' → 'access_control'."
+}
