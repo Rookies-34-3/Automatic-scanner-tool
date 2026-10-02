@@ -20,31 +20,41 @@ Sink 후보 JSON
 openai_module이 알맞은 검사 tool 호출
 ```
 
-## 현재 모의 도구 범위
+## 두 가지 탐색 방식
 
-현재 대상은 `127.0.0.1` 또는 `localhost`의 로컬 Docker 서비스로 제한한다. 크롤링으로
-발견한 URL에 현재 알고 있는 정적 진입점을 직접 추가한다.
+현재 대상은 `127.0.0.1` 또는 `localhost`의 로컬 Docker 서비스로 제한한다. endpoint는
+크롤링과 숨겨진 경로 wordlist 요청을 서로 구분해 수집한다.
+
+### 로그인 크롤러
+
+로그인된 사이트의 링크, form과 JavaScript를 따라가며 입력 가능한 지점을 최대한 찾는다.
+다음 경로는 미리 넣지 않고 크롤러가 화면과 JavaScript에서 발견해야 한다.
 
 ```text
-/admin
-/uploads/
 /my-class/board/qna
 /pre-course/write
 /my-class/pbl
 /my-class/board/task
+/mypage/my-information/<user_id>
+/api/profiles/<user_id>
+/customer/contact/<inquiry_id>
 ```
 
-ID가 필요한 `/mypage/my-information/<user_id>`, `/api/profiles/<user_id>`,
-`/customer/contact/<inquiry_id>`는 숫자를 임의로 만들지 않는다. 로그인된 화면과
-JavaScript에서 발견한 실제 URL을 사용한다.
+ID가 필요한 URL은 숫자를 임의로 만들지 않는다. 로그인된 화면에서 발견한 실제 링크와
+JavaScript 경로를 사용한다.
+
+### 숨겨진 endpoint wordlist
+
+사이트맵, 링크와 JavaScript 어디에도 나오지 않는 경로는 DirBuster와 같은 방식으로 별도
+wordlist의 경로를 직접 요청한다. 현재 모의 도구의 wordlist는 두 개뿐이다.
 
 ```text
-현재: 알고 있는 경로를 seed로 사용
-향후: DirBuster류 도구가 찾은 경로를 seed 목록에 추가
+/admin
+/uploads/
 ```
 
-현재 단계에서는 경로 사전을 순회하거나 경로 이름을 무작위로 대입하지 않는다. 나중에
-endpoint 탐색 범위를 넓혀도 크롤러와 Sink 분류 부분은 그대로 사용한다.
+현재는 이 두 경로의 존재 여부와 응답 특징만 수집한다. 나중에는 wordlist 항목을 늘리거나
+DirBuster류 도구의 결과를 같은 입력으로 전달해 범위를 넓힌다.
 
 ### `sink_finder.py`
 
@@ -72,7 +82,7 @@ find_sinks(
 | --- | --- |
 | `target_url` | `http://127.0.0.1:8080/login`에서 기준 출처 `http://127.0.0.1:8080`을 얻는다. |
 | `session_cookie` | 모든 크롤링 요청에 적용하는 로그인 세션 쿠키다. |
-| `seed_paths` | 기본값은 위의 알려진 정적 진입점이다. 향후 endpoint 탐색 결과를 추가한다. |
+| `seed_paths` | 숨겨진 endpoint wordlist다. 기본값은 `/admin`, `/uploads/` 두 개다. |
 
 쿠키 값은 로그, 예외 메시지, 반환 JSON과 Streamlit 화면에 포함하지 않는다.
 
@@ -80,21 +90,25 @@ find_sinks(
 
 ### 1. 시작 URL
 
-입력 URL의 기준 출처를 구한 뒤 다음 URL을 방문 대기열에 넣는다.
+입력 URL의 기준 출처를 구한 뒤 다음 URL만 크롤러 방문 대기열에 넣는다.
 
 ```text
 http://127.0.0.1:8080/
 http://127.0.0.1:8080/login
-http://127.0.0.1:8080/admin
-http://127.0.0.1:8080/uploads/
-http://127.0.0.1:8080/my-class/board/qna
-http://127.0.0.1:8080/pre-course/write
-http://127.0.0.1:8080/my-class/pbl
-http://127.0.0.1:8080/my-class/board/task
 ```
 
 로그인 쿠키를 적용하고 redirect를 따라가면 로그인 후 첫 화면과 메뉴를 수집할 수 있다.
-`seed_paths`가 전달되면 같은 기준 출처에 결합해 이 대기열에 추가한다.
+크롤러가 HTML과 JavaScript에서 새 URL을 발견할 때만 이 대기열이 늘어난다.
+
+`seed_paths`는 일반 크롤링 대기열과 별도로 기준 출처에 결합해 직접 요청한다.
+
+```text
+http://127.0.0.1:8080/admin
+http://127.0.0.1:8080/uploads/
+```
+
+응답이 존재하면 endpoint 결과에 추가한다. 반환된 HTML에 링크나 form이 있으면 그때 해당
+응답을 크롤러가 분석한다.
 
 ### 2. HTML에서 수집
 
@@ -132,9 +146,9 @@ http://127.0.0.1:8080/my-class/board/task
 - `logout`, 삭제 버튼과 외부 URL 제외
 - 이미지, CSS, 폰트는 제외하고 JavaScript만 추가 분석
 
-숨겨진 경로가 HTML과 JavaScript 어디에도 없으면 크롤러만으로 발견할 수 없다. 현재는 위의
-알려진 경로만 직접 확인한다. 향후 DirBuster류 도구가 찾은 경로 목록을 `seed_paths`로
-전달하면 동일한 크롤러가 각 경로의 링크, form과 입력 지점을 이어서 수집한다.
+숨겨진 경로가 HTML과 JavaScript 어디에도 없으면 크롤러만으로 발견할 수 없다. 이 경우에만
+별도 wordlist 요청을 사용한다. 향후 DirBuster류 도구가 찾은 경로 목록을 `seed_paths`로
+전달하면 각 응답을 같은 HTML·form 분석기로 처리한다.
 
 ## URL과 입력 규칙
 
@@ -285,12 +299,12 @@ form enctype=multipart/form-data
 | IDOR | 숫자·UUID와 객체 경로로 후보 발견 가능 | `authz`가 다른 객체 접근 결과 확인 |
 | 비밀글 권한 우회 | 객체 ID와 `secret` query로 후보 발견 가능 | `authz`가 query 유무에 따른 접근 결과 비교 |
 | 파일 업로드 취약점 | 업로드 form 발견 가능 | `fileio`가 파일명과 파일 내용별 동작 확인 |
-| 관리자 인증 누락 | 현재는 알려진 `/admin`을 직접 확인 | 비로그인 `/admin` 응답 확인 |
-| 디렉터리 인덱싱 | 현재는 알려진 `/uploads/`를 직접 확인 | `/uploads/` 응답 형식 확인 |
+| 관리자 인증 누락 | 두 항목 wordlist에서 `/admin` 요청 | 비로그인 `/admin` 응답 확인 |
+| 디렉터리 인덱싱 | 두 항목 wordlist에서 `/uploads/` 요청 | `/uploads/` 응답 형식 확인 |
 
 따라서 로그인 후 접근 가능한 기능이 링크, form 또는 JavaScript에 나타나는 현재 대상에서는
-요청한 주요 Sink를 거의 모두 수집할 수 있다. 현재는 알고 있는 정적 진입점으로 보완하고,
-나중에는 endpoint 탐색 결과를 추가 시작 URL로 넣어 범위를 넓힌다.
+요청한 주요 Sink를 거의 모두 수집할 수 있다. 완전히 숨겨진 `/admin`, `/uploads/`만 현재의
+두 항목 wordlist로 보완하고, 나중에는 wordlist 또는 endpoint 탐색 결과를 늘린다.
 
 ## 반환 형식
 
@@ -347,13 +361,14 @@ openai_module로 전달
 
 1. 세션 쿠키 적용과 같은 출처 제한
 2. 로그인 만료 확인
-3. 현재 알고 있는 정적 진입점으로 기본 seed 구성
-4. 링크와 form 크롤러
-5. JavaScript URL 수집
-6. URL template과 query 정규식 분류
-7. SQLi·XSS·SSRF·IDOR·권한·파일 후보 생성
-8. Streamlit 결과 표 연결
-9. 후보 JSON을 `openai_module.py`에 전달
+3. 링크와 form 크롤러
+4. JavaScript URL 수집
+5. `/admin`, `/uploads/` 두 항목 wordlist 요청
+6. 크롤링 결과와 wordlist 결과 병합
+7. URL template과 query 정규식 분류
+8. SQLi·XSS·SSRF·IDOR·권한·파일 후보 생성
+9. Streamlit 결과 표 연결
+10. 후보 JSON을 `openai_module.py`에 전달
 
-브라우저 자동화와 DirBuster류 endpoint 탐색은 첫 구현에 넣지 않는다. 향후 탐색 결과를
-`seed_paths`로 전달하는 방식으로 범위를 확장한다.
+첫 구현의 wordlist에는 `/admin`, `/uploads/`만 둔다. 향후 목록을 늘리거나 DirBuster류
+endpoint 탐색 결과를 `seed_paths`로 전달하는 방식으로 범위를 확장한다.
