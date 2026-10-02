@@ -8,9 +8,7 @@ Automatic-scanner-tool/
 ├─ sink_finder.py
 ├─ openai_module.py
 ├─ report_writer.py
-├─ fileio_scanner/          # 현재 구현된 기존 모듈
 ├─ docs/
-├─ targets/
 └─ output/
 ```
 
@@ -64,6 +62,5 @@ OpenAI의 function call 결과에 따라 SQLi, XSS, File I/O 등의 함수를 �
 ## 현재 범위
 
 - 세 모듈을 Streamlit 진입점과 같은 위치에 생성
-- 기존 `fileio_scanner`는 그대로 유지
 - SQLi, XSS 등 다른 브랜치의 코드는 아직 병합하지 않음
 - 함수와 실행 로직은 아직 구현하지 않음

@@ -10,9 +10,6 @@ env/
 output/*.json
 output/*.html
 
-# 실제 자격증명이 담긴 로컬 타깃 설정 (커밋 금지)
-targets/*.local.json
-
 # API 키 등 비밀 (절대 커밋 금지)
 .env
 *.env
