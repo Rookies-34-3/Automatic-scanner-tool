@@ -3,3 +3,6 @@
 출력 형식: URL, HTTP 메서드, 파라미터, Sink 후보를 담은 JSON 목록.
 구현은 다음 단계에서 추가한다.
 """
+
+def find_sinks(target_url: str, session_cookie: str = "",seed_paths: list[str] | None = None,) -> list[dict]:
+    print('더미')

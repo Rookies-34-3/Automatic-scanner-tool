@@ -45,6 +45,9 @@ parameters
 sink_candidates
 ```
 
+탐색 범위, 후보 분류 규칙과 Streamlit 연결 방식은
+[Sink 탐색 설계](SINK_FINDER_DESIGN.md)에 정리한다.
+
 ### `openai_module.py`
 
 Sink 결과와 `module/`에서 import한 취약점 검사 함수 목록을 OpenAI에 전달한다. OpenAI의
@@ -58,7 +61,7 @@ function call 결과에 따라 SQLi, XSS, File I/O 등의 함수를 애플리케
 
 ### `streamlit_app.py`
 
-현재 구현 범위다. 프로젝트 이름과 대상 URL, 세션 쿠키 입력칸만 표시한다.
+프로젝트 이름과 대상 URL, 세션 쿠키 입력칸, Sink 찾기 버튼을 표시한다.
 
 ## 현재 범위
 

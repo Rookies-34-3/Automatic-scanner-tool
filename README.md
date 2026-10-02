@@ -16,8 +16,8 @@ Automatic-scanner-tool/
 └─ output/
 ```
 
-`streamlit_app.py`에는 대상 URL과 세션 쿠키를 받는 입력칸만 구현되어 있다.
-나머지 세 모듈은 역할 설명만 있고 실행 로직은 없다.
+`streamlit_app.py`에는 대상 URL과 세션 쿠키 입력, Sink 찾기 호출 부분이 있다.
+`sink_finder.py`의 실제 크롤링과 나머지 모듈의 실행 로직은 아직 구현하지 않았다.
 
 ## `module/`
 
@@ -49,4 +49,5 @@ Streamlit 입력
 않는다.
 
 - [구조 설계](docs/ARCHITECTURE.md)
+- [Sink 탐색 설계](docs/SINK_FINDER_DESIGN.md)
 - [보고서 형태](docs/REPORT_SPEC.md)
