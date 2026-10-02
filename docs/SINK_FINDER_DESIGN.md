@@ -333,8 +333,14 @@ form enctype=multipart/form-data
 ]
 ```
 
-`openai_module.py`에는 URL 전체, 메서드, 파라미터 위치와 `tools` 목록을 전달한다. 모델은
-등록된 tool 중 필요한 함수를 선택하고 애플리케이션이 해당 함수를 실행한다.
+원본 목록을 유지하고 `openai_module.py`의 `prepare_sinks_for_openai(sinks)`로 전달용
+요약을 만든다. 같은 출처·메서드·경로 템플릿을 묶고 ID 값만 다른 주소는 대표 주소
+하나와 발견 개수로 줄인다. 파라미터·전송 형식·후보 tool이 다르면 `request_variants`로
+구분하며 요청 형태별 대표 주소 하나를 유지한다. `/uploads/` 파일은 같은 디렉터리
+템플릿·마지막 확장자·후보 tool 기준으로 묶고, 디렉터리 경로는 별도로 유지한다.
+반환 형식은 `{"candidate_status": "unverified", "groups": [...]}`이다. 요청 형태의
+`candidate_tools`가 생략되면 그룹의 tool 목록을 사용한다. 방문 상태·응답 코드·출처·오류와
+긴 후보 설명은 원본에 보관하고, 이 요약의 입력 정보와 후보 tool만 이후 모델에 전달한다.
 
 ## Streamlit 흐름
 
@@ -347,7 +353,7 @@ find_sinks(target_url, session_cookie)
         ↓
 발견한 endpoint와 후보 표 출력
         ↓
-openai_module로 전달
+prepare_sinks_for_openai(sinks)로 집계 후 openai_module에 전달
 ```
 
 초기 화면에는 다음만 표시한다.
