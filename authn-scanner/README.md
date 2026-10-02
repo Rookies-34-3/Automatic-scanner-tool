@@ -51,12 +51,6 @@ authn_scanner/
 └── __main__.py     python -m 실행 진입점
 ```
 
-통합 담당자는 `from authn_scanner import run_scan`으로 검사 함수를 호출하거나 CLI가 출력하는 JSON을 사용하면 됩니다.
-
-## 자체 테스트
-
-웹 개발자의 사이트가 완성되기 전에도 검사 로직을 확인할 수 있도록 테스트 코드 안에서 임시 로컬 서버를 실행합니다.
-
 ```powershell
 python -m unittest discover -s tests -v
 ```
