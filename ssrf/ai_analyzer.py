@@ -16,53 +16,44 @@ def analyze_ssrf(data):
 당신은 웹 취약점 자동 진단 시스템의
 보안 분석 AI입니다.
 
-아래 SSRF Scanner가 수집한
-HTTP 요청 및 응답 데이터를 분석하세요.
+아래 SSRF Scanner가 수집한 데이터를 분석하세요.
 
 [진단 데이터]
 
 {json.dumps(
     data,
     ensure_ascii=False,
-    indent=2
+    indent=4
 )}
 
 판정 기준:
 
-1. 정상적인 외부 URL 요청 결과를
-   기준으로 삼습니다.
+1. 정상적인 외부 URL 요청 결과와
+   SSRF Verifier 테스트 결과를 함께 확인합니다.
 
-2. 내부 테스트 URL 요청 결과와
-   비교합니다.
+2. SSRF Verifier의 verifier_evidence.received가
+   true이고, path가 /check/<verification_id>로
+   확인되면 대상 서버가 검증 서버에 실제로
+   서버 측 요청을 보낸 명확한 증거로 봅니다.
+   이 경우 VULNERABLE로 판단합니다.
 
-3. 내부 테스트 서비스의 응답 내용이
-   반환되었거나 서버가 내부 서비스에
-   요청한 정황이 HTTP 응답에서 확인되면
-   VULNERABLE로 판단합니다.
+3. verifier_evidence.received가 false이면
+   HTTP 응답만으로 SSRF가 확인되지 않는 경우
+   VULNERABLE로 판단하지 않습니다.
 
 4. 단순히 HTTP 상태 코드가 200이라는
-   이유만으로 SSRF라고 판단하지 않습니다.
+   이유만으로 VULNERABLE로 판단하지 않습니다.
 
-5. HTTP 응답만으로 취약점을 확인할 수 없는
-   경우 N/A로 판단합니다.
+5. 취약점 여부를 확인할 충분한 근거가 없으면
+   N/A로 판단합니다.
 
-6. 확인되지 않은 사실을 추측해서
-   VULNERABLE로 판단하지 않습니다.
+6. 확인되지 않은 사실을 추측하지 않습니다.
 
 다음 JSON 형식으로만 응답하세요.
 
 {{
-    "result":
-        "VULNERABLE 또는 SAFE 또는 N/A",
-
-    "severity":
-        "HIGH 또는 MEDIUM 또는 LOW 또는 INFO",
-
-    "evidence":
-        "판정 근거",
-
-    "reason":
-        "상세 분석 내용"
+    "vuln": "VULNERABLE 또는 SAFE 또는 N/A",
+    "result": "판정 근거"
 }}
 """
 
@@ -82,13 +73,7 @@ HTTP 요청 및 응답 데이터를 분석하세요.
     except Exception as e:
 
         return {
-            "result": "N/A",
-
-            "severity": "INFO",
-
-            "evidence":
-                "AI 분석 중 오류가 발생했습니다.",
-
-            "reason":
-                str(e)
+            "vuln": "N/A",
+            "result":
+                f"AI 분석 오류: {str(e)}"
         }

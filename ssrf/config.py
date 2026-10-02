@@ -2,52 +2,7 @@ import os
 
 
 # ==============================
-# Target Web Server
-# ==============================
-
-TARGET_URL = "http://13.125.233.51"
-
-
-# ==============================
-# Login
-# ==============================
-
-LOGIN_ENDPOINT = "/login"
-
-USERNAME = os.getenv("SSrf_USERNAME")
-PASSWORD = os.getenv("SSrf_PASSWORD")
-
-
-# ==============================
-# SSRF Endpoint
-# ==============================
-
-ENDPOINT = "/pre-course/write"
-
-METHOD = "POST"
-
-PARAMETER = "url"
-
-ACTION_PARAMETER = "action"
-
-ACTION_VALUE = "preview"
-
-TITLE_PARAMETER = "title"
-
-TITLE_VALUE = "SSRF Scanner Test"
-
-
-# ==============================
-# Test URLs
-# ==============================
-
-EXTERNAL_URL = "https://example.com"
-
-INTERNAL_TEST_URL = "http://internal-service:9000/health"
-
-
-# ==============================
-# Request
+# Scanner
 # ==============================
 
 TIMEOUT = 10
@@ -58,3 +13,21 @@ TIMEOUT = 10
 # ==============================
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# ==============================
+# SSRF Verifier
+# ==============================
+
+# 대상 웹 서버가 Docker 내부에서 접근할 검증 URL
+VERIFIER_PAYLOAD_URL = os.getenv(
+    "SSRF_VERIFIER_PAYLOAD_URL",
+    "http://ssrf-verifier:9001/check"
+)
+
+# Scanner PC가 외부에서 조회할 검증 결과 URL
+VERIFIER_STATUS_URL = os.getenv(
+    "SSRF_VERIFIER_STATUS_URL",
+    "http://13.125.233.51/ssrf-verify/status"
+)
+
+VERIFIER_TIMEOUT = 5

