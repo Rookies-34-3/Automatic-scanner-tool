@@ -48,15 +48,3 @@ authz_scanner/
 ├── __init__.py     run_scan 공개
 └── __main__.py     python -m 실행 진입점
 ```
-
-통합 담당자는 `from authz_scanner import run_scan`으로 검사 함수를 호출하거나 CLI가 출력하는 JSON을 사용하면 됩니다.
-
-## 자체 테스트
-
-웹 개발자의 사이트가 완성되기 전에도 검사 로직을 확인할 수 있도록 테스트 코드 안에서 임시 로컬 서버를 실행합니다.
-
-```powershell
-python -m unittest discover -s tests -v
-```
-
-안전한 기본 버전은 `GET`, `HEAD`만 검사합니다. 무작위 ID 열거는 수행하지 않으며, 직접 구축했거나 명시적으로 허가받은 환경에서만 사용해야 합니다. 토큰과 실제 응답 본문은 결과 JSON에 포함하지 않습니다.
