@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "target": {
+    "base_url": "http://127.0.0.1:8080"
+  },
+  "execution": {
+    "parallel": true,
+    "scanner_timeout_seconds": 180,
+    "output_dir": "pipeline/results",
+    "aggregate_file": "aggregate.json"
+  },
+  "scanners": [
+    {
+      "id": "authn",
+      "enabled": true,
+      "config": "authn-scanner/examples/config.example.json",
+      "endpoints": [
+        {
+          "name": "관리자 페이지 인증 누락",
+          "method": "GET",
+          "path": "/admin",
+          "required_markers": ["관리자 대시보드", "최근 문의"]
+        },
+        {
+          "name": "PBL 페이지 인증 보호 확인",
+          "method": "GET",
+          "path": "/my-class/pbl",
+          "required_markers": ["PBL"]
+        }
+      ]
+    },
+    {
+      "id": "authz",
+      "enabled": true,
+      "config": "authz-scanner/examples/config.example.json",
+      "endpoints": [
+        {
+          "name": "사용자 프로필 IDOR",
+          "method": "GET",
+          "path": "/api/profiles/{user_id}",
+          "owner_account": "owner",
+          "attacker_account": "other_user",
+          "discovery": {
+            "path": "/",
+            "regex": "href=\"/mypage/my-information/(?P<user_id>\\d+)\"",
+            "variable": "user_id"
+          },
+          "sensitive_fields": ["user_id", "username", "email", "phone"],
+          "check_anonymous": true
+        },
+        {
+          "name": "비밀 문의 권한 검증 누락",
+          "method": "GET",
+          "path": "/customer/contact/{inquiry_id}",
+          "owner_account": "owner",
+          "attacker_account": "other_user",
+          "discovery": {
+            "path": "/customer/contact",
+            "regex": "href=\"/customer/contact/(?P<inquiry_id>\\d+)",
+            "variable": "inquiry_id"
+          },
+          "check_anonymous": true
+        }
+      ]
+    },
+    {
+      "id": "sqli",
+      "enabled": true,
+      "config": "sqli/config.json",
+      "endpoints": [
+        {
+          "path": "/my-class/board/qna",
+          "parameter": "content"
+        },
+        {
+          "path": "/my-class/board/notice",
+          "parameter": "content"
+        }
+      ]
+    }
+  ]
+}

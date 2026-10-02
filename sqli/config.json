@@ -1,0 +1,13 @@
+{
+  "base_url": "http://127.0.0.1:8080",
+  "login_path": "/login",
+  "username": "student1",
+  "password_env": "ROOKIESCAN_PASSWORD",
+  "timeout": 10,
+  "delay": 0.2,
+  "result_selector": "tbody",
+  "targets": [
+    {"path": "/my-class/board/qna", "parameter": "content"},
+    {"path": "/my-class/board/notice", "parameter": "content"}
+  ]
+}

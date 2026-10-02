@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "target": {
+    "base_url": "http://13.125.233.51"
+  },
+  "execution": {
+    "parallel": true,
+    "scanner_timeout_seconds": 180,
+    "output_dir": "pipeline/results",
+    "aggregate_file": "aggregate.json"
+  },
+  "scanners": [
+    {
+      "id": "authn",
+      "enabled": true,
+      "config": "authn-scanner/examples/config.aws.json"
+    },
+    {
+      "id": "authz",
+      "enabled": true,
+      "config": "authz-scanner/examples/config.aws.json"
+    },
+    {
+      "id": "sqli",
+      "enabled": true,
+      "config": "sqli/config.json",
+      "endpoints": [
+        {
+          "path": "/my-class/board/qna",
+          "parameter": "content"
+        },
+        {
+          "path": "/my-class/board/notice",
+          "parameter": "content"
+        }
+      ]
+    }
+  ]
+}
