@@ -35,6 +35,11 @@ class DirectoryIndexingTests(unittest.TestCase):
 
         self.assertEqual(result["vuln"], "VULNERABLE")
         self.assertIn("Index of", result["result"])
+        self.assertEqual(result["status_code"], 200)
+        self.assertIn(
+            "Index of /",
+            result["details"]["matched_indicators"]
+        )
         session.get.assert_called_once_with(
             "http://localhost/uploads/",
             timeout=5
@@ -59,10 +64,16 @@ class DirectoryIndexingTests(unittest.TestCase):
             )
 
         self.assertEqual(result["vuln"], "SAFE")
+        self.assertEqual(result["status_code"], 200)
+        self.assertEqual(
+            result["details"]["matched_indicators"],
+            []
+        )
         session.get.assert_called_once_with(
             "http://localhost/login",
             timeout=5
         )
+        session.close.assert_called_once()
 
     def test_non_get_method_returns_na(self):
         with patch(
@@ -80,7 +91,9 @@ class DirectoryIndexingTests(unittest.TestCase):
 
     def test_http_request_failure_returns_na(self):
         session = Mock()
-        session.get.side_effect = requests.RequestException("request failed")
+        session.get.side_effect = requests.RequestException(
+            "request failed"
+        )
 
         with patch(
             "scan.directory_indexing.scanner.requests.Session",
@@ -94,6 +107,16 @@ class DirectoryIndexingTests(unittest.TestCase):
             )
 
         self.assertEqual(result["vuln"], "N/A")
+        self.assertEqual(result["status_code"], None)
+        self.assertEqual(
+            result["details"]["reason"],
+            "request_failed"
+        )
+        self.assertEqual(
+            result["details"]["error_type"],
+            "RequestException"
+        )
+        session.close.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -17,6 +17,8 @@ def run(url, method, parameters, cookie):
         parameters
         vuln
         result
+        status_code
+        details
     """
 
     method = method.upper()
@@ -27,7 +29,11 @@ def run(url, method, parameters, cookie):
             "method": method,
             "parameters": parameters,
             "vuln": "N/A",
-            "result": "관리자 페이지 노출 검사는 GET 요청만 지원합니다."
+            "result": "관리자 페이지 노출 검사는 GET 요청만 지원합니다.",
+            "status_code": None,
+            "details": {
+                "reason": "unsupported_method"
+            }
         }
 
     # 관리자 페이지 노출 여부는 비로그인 상태에서 검사한다.
@@ -47,7 +53,12 @@ def run(url, method, parameters, cookie):
             "method": method,
             "parameters": parameters,
             "vuln": "N/A",
-            "result": f"HTTP 요청 실패: {type(e).__name__}"
+            "result": f"HTTP 요청 실패: {type(e).__name__}",
+            "status_code": None,
+            "details": {
+                "reason": "request_failed",
+                "error_type": type(e).__name__
+            }
         }
 
     finally:
@@ -63,7 +74,11 @@ def run(url, method, parameters, cookie):
             "result": (
                 f"HTTP {response.status_code} 응답으로 접근이 거부되어 "
                 "관리자 페이지가 노출되지 않았습니다."
-            )
+            ),
+            "status_code": response.status_code,
+            "details": {
+                "access_denied": True
+            }
         }
 
     location = response.headers.get("Location", "").lower()
@@ -79,7 +94,11 @@ def run(url, method, parameters, cookie):
                 "result": (
                     "인증 페이지로 리다이렉트되어 "
                     "비로그인 상태에서 관리자 페이지에 접근할 수 없습니다."
-                )
+                ),
+                "status_code": response.status_code,
+                "details": {
+                    "redirect_location": response.headers.get("Location", "")
+                }
             }
 
         return {
@@ -90,7 +109,11 @@ def run(url, method, parameters, cookie):
             "result": (
                 f"HTTP {response.status_code} 리다이렉트가 발생하여 "
                 "관리자 페이지 노출 여부를 확정할 수 없습니다."
-            )
+            ),
+            "status_code": response.status_code,
+            "details": {
+                "redirect_location": response.headers.get("Location", "")
+            }
         }
 
     body = response.text.lower()
@@ -119,7 +142,13 @@ def run(url, method, parameters, cookie):
                 "비로그인 상태에서 HTTP 200 응답이 반환되었으며, "
                 f"관리자 페이지 식별 지표 {len(matched)}개가 확인되었습니다: "
                 + ", ".join(matched)
-            )
+            ),
+            "status_code": response.status_code,
+            "details": {
+                "matched_indicators": matched,
+                "indicator_count": len(matched),
+                "required_indicator_count": 2
+            }
         }
 
     if response.status_code == 200:
@@ -131,7 +160,13 @@ def run(url, method, parameters, cookie):
             "result": (
                 "HTTP 200 응답은 확인되었지만 관리자 페이지를 나타내는 "
                 "충분한 식별 지표가 확인되지 않았습니다."
-            )
+            ),
+            "status_code": response.status_code,
+            "details": {
+                "matched_indicators": matched,
+                "indicator_count": len(matched),
+                "required_indicator_count": 2
+            }
         }
 
     return {
@@ -142,5 +177,9 @@ def run(url, method, parameters, cookie):
         "result": (
             f"HTTP {response.status_code} 응답으로 인해 "
             "관리자 페이지 노출 여부를 명확하게 판단할 수 없습니다."
-        )
+        ),
+        "status_code": response.status_code,
+        "details": {
+            "matched_indicators": matched
+        }
     }

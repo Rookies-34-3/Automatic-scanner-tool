@@ -1,0 +1,36 @@
+{
+  "base_url": "http://127.0.0.1:8080",
+
+  "directory_indexing": {
+    "targets": [
+      {
+        "url": "http://127.0.0.1:8080/uploads/",
+        "method": "GET",
+        "parameters": []
+      }
+    ]
+  },
+
+  "admin_exposure": {
+    "targets": [
+      {
+        "url": "http://127.0.0.1:8080/admin",
+        "method": "GET",
+        "parameters": []
+      }
+    ]
+  },
+
+  "portscan": {
+    "url": "http://127.0.0.1:8080",
+    "ports": [80],
+    "allowed_ports": [80],
+    "timeout": 1
+  },
+
+  "severity": {
+    "directory_indexing": "INFO",
+    "admin_exposure": "INFO",
+    "portscan": "INFO"
+  }
+}

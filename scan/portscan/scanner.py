@@ -8,13 +8,12 @@ DEFAULT_TIMEOUT = 1.0
 
 
 def _extract_host(url):
-    """URL에서 호스트를 추출한다."""
+    """URL에서 host를 추출한다."""
     parsed = urlparse(url)
 
     if parsed.hostname:
         return parsed.hostname
 
-    # scheme이 없는 입력도 지원
     parsed = urlparse(f"//{url}")
     return parsed.hostname
 
@@ -24,27 +23,52 @@ def _check_port(host, port, timeout):
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
+
     except (ConnectionRefusedError, TimeoutError, OSError):
         return False
 
 
+def _normalize_ports(port_list):
+    """포트 목록을 검증하고 중복을 제거한다."""
+    result = []
+
+    if not isinstance(port_list, list):
+        return None
+
+    for port in port_list:
+        try:
+            port = int(port)
+
+            if not 1 <= port <= 65535:
+                return None
+
+            result.append(port)
+
+        except (TypeError, ValueError):
+            return None
+
+    return list(dict.fromkeys(result))
+
+
 def run(url, method, parameters, cookie):
     """
-    Port Scan
+    TCP Port Scan
 
-    기본 설정:
-        검사 포트       : 80
-        허용 포트       : 80
-        연결 timeout    : 1초
-
-    parameters로 검사 대상과 허용 포트를 변경할 수 있다.
-
-    예:
+    parameters:
         {
-            "ports": [80, 8080],
+            "ports": [80],
             "allowed_ports": [80],
             "timeout": 1
         }
+
+    반환:
+        url
+        method
+        parameters
+        vuln
+        result
+        status_code
+        details
     """
 
     if parameters is None:
@@ -56,7 +80,11 @@ def run(url, method, parameters, cookie):
             "method": method,
             "parameters": parameters,
             "vuln": "N/A",
-            "result": "parameters는 객체(dict) 형태여야 합니다."
+            "result": "parameters는 객체(dict) 형태여야 합니다.",
+            "status_code": None,
+            "details": {
+                "reason": "invalid_parameters"
+            }
         }
 
     ports = parameters.get("ports", DEFAULT_PORTS)
@@ -64,24 +92,43 @@ def run(url, method, parameters, cookie):
         "allowed_ports",
         DEFAULT_ALLOWED_PORTS
     )
-    timeout = parameters.get("timeout", DEFAULT_TIMEOUT)
+    timeout = parameters.get(
+        "timeout",
+        DEFAULT_TIMEOUT
+    )
 
-    if not isinstance(ports, list) or not ports:
+    normalized_ports = _normalize_ports(ports)
+
+    if not normalized_ports:
         return {
             "url": url,
             "method": method,
             "parameters": parameters,
             "vuln": "N/A",
-            "result": "검사할 포트 목록(ports)이 지정되지 않았습니다."
+            "result": "검사할 포트 목록(ports)이 올바르지 않습니다.",
+            "status_code": None,
+            "details": {
+                "reason": "invalid_ports",
+                "ports": ports
+            }
         }
 
-    if not isinstance(allowed_ports, list):
+    normalized_allowed_ports = _normalize_ports(
+        allowed_ports
+    )
+
+    if normalized_allowed_ports is None:
         return {
             "url": url,
             "method": method,
             "parameters": parameters,
             "vuln": "N/A",
-            "result": "허용 포트 목록(allowed_ports)은 리스트여야 합니다."
+            "result": "허용 포트 목록(allowed_ports)이 올바르지 않습니다.",
+            "status_code": None,
+            "details": {
+                "reason": "invalid_allowed_ports",
+                "allowed_ports": allowed_ports
+            }
         }
 
     try:
@@ -96,45 +143,12 @@ def run(url, method, parameters, cookie):
             "method": method,
             "parameters": parameters,
             "vuln": "N/A",
-            "result": "timeout은 0보다 큰 숫자여야 합니다."
-        }
-
-    def normalize_ports(port_list):
-        result = []
-
-        for port in port_list:
-            try:
-                port = int(port)
-
-                if not 1 <= port <= 65535:
-                    raise ValueError
-
-                result.append(port)
-
-            except (TypeError, ValueError):
-                return None
-
-        return list(dict.fromkeys(result))
-
-    normalized_ports = normalize_ports(ports)
-    normalized_allowed_ports = normalize_ports(allowed_ports)
-
-    if normalized_ports is None:
-        return {
-            "url": url,
-            "method": method,
-            "parameters": parameters,
-            "vuln": "N/A",
-            "result": "잘못된 포트 번호가 포함되어 있습니다."
-        }
-
-    if normalized_allowed_ports is None:
-        return {
-            "url": url,
-            "method": method,
-            "parameters": parameters,
-            "vuln": "N/A",
-            "result": "잘못된 허용 포트 번호가 포함되어 있습니다."
+            "result": "timeout은 0보다 큰 숫자여야 합니다.",
+            "status_code": None,
+            "details": {
+                "reason": "invalid_timeout",
+                "timeout": timeout
+            }
         }
 
     host = _extract_host(url)
@@ -145,7 +159,11 @@ def run(url, method, parameters, cookie):
             "method": method,
             "parameters": parameters,
             "vuln": "N/A",
-            "result": "URL에서 호스트를 확인할 수 없습니다."
+            "result": "URL에서 호스트를 확인할 수 없습니다.",
+            "status_code": None,
+            "details": {
+                "reason": "invalid_host"
+            }
         }
 
     open_ports = []
@@ -160,6 +178,15 @@ def run(url, method, parameters, cookie):
         if port not in normalized_allowed_ports
     ]
 
+    details = {
+        "host": host,
+        "scanned_ports": normalized_ports,
+        "open_ports": open_ports,
+        "allowed_ports": normalized_allowed_ports,
+        "unexpected_ports": unexpected_ports,
+        "timeout": timeout
+    }
+
     if unexpected_ports:
         return {
             "url": url,
@@ -170,7 +197,9 @@ def run(url, method, parameters, cookie):
                 f"접근 가능한 포트: {open_ports}. "
                 f"허용되지 않은 포트가 확인되었습니다: "
                 f"{unexpected_ports}"
-            )
+            ),
+            "status_code": None,
+            "details": details
         }
 
     return {
@@ -180,6 +209,9 @@ def run(url, method, parameters, cookie):
         "vuln": "SAFE",
         "result": (
             f"접근 가능한 포트: {open_ports}. "
-            f"허용되지 않은 포트가 확인되었습니다: {unexpected_ports}"
-)
+            f"허용되지 않은 포트가 확인되었습니다: "
+            f"{unexpected_ports}"
+        ),
+        "status_code": None,
+        "details": details
     }
