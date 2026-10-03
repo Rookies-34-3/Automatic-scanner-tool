@@ -6,7 +6,7 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from urllib.parse import urlsplit
 
 from streamlit.testing.v1 import AppTest
@@ -40,6 +40,7 @@ def analysis_report(payload, session_cookie="", scanner_options=None, on_progres
     return {
         "model": "gpt-6.1-sol", "group_count": len(payload["groups"]),
         "tool_call_count": 1,
+        "summary_scope": "all_results",
         "summary": "입력 지점에 실제 스캐너를 실행했습니다.",
         "tool_results": [{
             "scanner_id": "sqli", "name": "SQL Injection",
@@ -146,7 +147,7 @@ class StreamlitFlowTest(unittest.TestCase):
         self.assertEqual(len(app.session_state["sinks"]), 6)
         self.assertEqual(len(app.session_state["openai_sinks"]["groups"]), 5)
         self.assertEqual(len(app.dataframe), 1)
-        self.assertEqual([heading.value for heading in app.subheader], ["분석 보고서"])
+        self.assertEqual(app.subheader[0].value, "분석 보고서")
         self.assertEqual(app.session_state["analysis_result"]["tool_results"][0]["vuln"], "PASS")
         self.assertTrue(any("스캐너 호출 1회" in item.value for item in app.caption))
         final_path = Path(app.session_state["analysis_result"]["json_path"])
@@ -191,7 +192,7 @@ class StreamlitFlowTest(unittest.TestCase):
                 self.assertEqual([heading.value for heading in app.subheader], ["Sink 탐색 보고서"])
                 self.assertEqual(len(app.dataframe), 1)
                 app.button[1].click().run()
-                self.assertEqual([heading.value for heading in app.subheader], ["분석 보고서"])
+                self.assertEqual(app.subheader[0].value, "분석 보고서")
                 analyze.assert_called_once()
             self.assertIn("analysis_result", app.session_state)
             count = len(requests)
@@ -239,6 +240,57 @@ class StreamlitFlowTest(unittest.TestCase):
         self.assertEqual(len(app.error), 1)
         self.assertIn("session_expired", app.error[0].value)
         self.assertFalse(app.caption)
+
+    def test_counts_and_confirmed_findings_survive_incomplete_ai_text_and_summary_refresh(self):
+        analysis = analysis_report({"groups": []})
+        template = analysis["tool_results"][0]
+        statuses = ["VULNERABLE"] * 6 + ["PASS"] * 18 + ["REVIEW"] * 46
+        analysis.update(
+            group_count=33, tool_call_count=53, summary="일부 항목만 설명한 이전 AI 답변",
+            tool_results=[{**template, "url": f"http://127.0.0.1:8080/item/{index}", "vuln": verdict}
+                          for index, verdict in enumerate(statuses)],
+        )
+        analysis.pop("summary_scope")
+        app = AppTest.from_file(str(APP))
+        app.session_state["show_report"] = True
+        app.session_state["show_analysis"] = True
+        app.session_state["scan_target_url"] = "http://127.0.0.1:8080/"
+        app.session_state["analysis_result"] = analysis
+
+        client = MagicMock()
+        client.with_options.return_value = client
+        client.__enter__.return_value = client
+        client.responses.create.return_value = SimpleNamespace(
+            status="completed", model="test-model", output_text="전체 결과의 새 AI 답변",
+        )
+        with patch("importlib.reload", side_effect=lambda module: module), \
+                patch.object(openai_module, "get_openai_client", return_value=client), \
+                patch.object(openai_module, "analyze_sinks") as analyze, \
+                patch.object(sink_finder, "find_sinks") as collect:
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertEqual(app.table[0].value.to_dict("records"), [{
+                "전체 결과": 70, "VULNERABLE": 6, "PASS": 18, "REVIEW": 46, "ERROR": 0,
+            }])
+            self.assertEqual(app.table[1].value["URL"].tolist(),
+                             [f"http://127.0.0.1:8080/item/{index}" for index in range(6)])
+            client.responses.create.assert_not_called()
+            next(button for button in app.button if button.label == "AI 답변 갱신").click().run()
+            self.assertFalse(app.exception)
+            self.assertFalse(app.error)
+            client.responses.create.assert_called_once()
+            analyze.assert_not_called()
+            collect.assert_not_called()
+
+        summary_input = json.loads(client.responses.create.call_args.kwargs["input"][-1]["content"])
+        self.assertEqual(len(summary_input["findings"]), 70)
+        self.assertEqual(len(summary_input["confirmed_findings"]), 6)
+        updated = app.session_state["analysis_result"]
+        self.assertEqual(updated["summary_scope"], "all_results")
+        self.assertEqual(updated["summary"], "전체 결과의 새 AI 답변")
+        saved = json.loads(Path(updated["json_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(saved["summary"]["vulnerable"], 6)
+        self.assertEqual(saved["ai"]["summary_scope"], "all_results")
 
 
 if __name__ == "__main__":

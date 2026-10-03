@@ -23,6 +23,7 @@ MYSQL_ERROR = re.compile(
     re.IGNORECASE,
 )
 REMEDIATION = "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+SQLI_FORM_TYPES = {"text", "search", "textarea", "email", "tel", "url"}
 
 
 class ScanError(Exception):
@@ -81,6 +82,74 @@ class Scanner:
         if response.status_code != 200 or login_form(response):
             raise ScanError(f"게시판 접근 실패 또는 세션 만료 (HTTP {response.status_code})")
 
+    def form_request_data(self, target):
+        """POST 폼의 정상값을 구성해 검사 대상 필드만 나중에 교체할 수 있게 한다."""
+        page = self.request("GET", target["path"])
+        self.check_page(page)
+        target_url = urljoin(self.base, target["path"])
+        target_parts = urlsplit(target_url)
+        forms = []
+        for form in soup(page).select("form"):
+            if form.get("method", "GET").upper() != "POST":
+                continue
+            action = urlsplit(urljoin(target_url, form.get("action") or target_url))
+            if (action.scheme, action.netloc, action.path) == (
+                target_parts.scheme, target_parts.netloc, target_parts.path,
+            ):
+                forms.append(form)
+        form = next((item for item in forms if any(
+            field.get("name") == target["parameter"] for field in item.select("[name]")
+        )), forms[0] if len(forms) == 1 else None)
+        if form is None:
+            raise ScanError("POST 대상과 일치하는 폼을 찾지 못했습니다.")
+
+        fields = {}
+        target_type = None
+        safe_values = {
+            "email": "rookiescan@example.com", "tel": "010-0000-0000",
+            "url": "https://example.com/", "number": "1",
+        }
+        for field in form.select("[name]"):
+            if field.has_attr("disabled"):
+                continue
+            name = field["name"]
+            if field.name == "input":
+                kind = field.get("type", "text").lower()
+            else:
+                kind = (field.get("type") or ("submit" if field.name == "button" else field.name)).lower()
+            if name == target["parameter"]:
+                target_type = kind
+            if kind in {"file", "reset", "button", "image"}:
+                if kind == "file" and field.has_attr("required") and name != target["parameter"]:
+                    raise ScanError(f"필수 파일 입력값이 필요합니다: {name}")
+                continue
+            if kind in {"checkbox", "radio"}:
+                if field.has_attr("checked"):
+                    fields[name] = field.get("value", "on")
+                continue
+            if kind == "submit":
+                if field.get("value"):
+                    fields.setdefault(name, field["value"])
+                continue
+            if field.name == "select":
+                options = [option for option in field.select("option:not([disabled])")]
+                selected = next((option for option in options if option.has_attr("selected")), None)
+                if selected is None and field.has_attr("required"):
+                    selected = next((option for option in options if option.get("value", option.text)), None)
+                fields[name] = selected.get("value", selected.text) if selected else ""
+                continue
+            value = field.get_text() if field.name == "textarea" else field.get("value", "")
+            if field.has_attr("required") and not value:
+                value = safe_values.get(kind, "ROOKIESCAN")
+            fields[name] = value
+
+        if target_type not in SQLI_FORM_TYPES:
+            raise ScanError(f"{target['parameter']} 필드는 SQL 인젝션 문자열 검사 대상이 아닙니다.")
+        csrf = next((value for name, value in fields.items() if "csrf" in name.lower()), None)
+        if csrf is not None and not csrf:
+            raise ScanError("POST 폼의 CSRF 토큰 값이 비어 있습니다.")
+        return fields
+
     def result_text(self, response, payload):
         document = soup(response)
         selector = self.config.get("result_selector", "tbody")
@@ -114,7 +183,9 @@ class Scanner:
         def fetch(payload):
             # 입력 방식만 선택합니다. 페이로드와 아래의 판정 조건은 기존 그대로입니다.
             method = target.get("method", "GET")
-            request_data = {target["parameter"]: payload}
+            request_data = self.form_request_data(target) if method == "POST" else {}
+            if payload is not None:
+                request_data[target["parameter"]] = payload
             options = {"params": request_data} if method == "GET" else {"data": request_data}
             response = self.request(method, target["path"], **options)
             finding["status_code"] = response.status_code
@@ -124,7 +195,11 @@ class Scanner:
 
         boolean_started = False  # 추가 증거 수집 중 발생한 실패를 구분합니다.
         try:
-            baseline = fetch("")
+            if (target.get("method", "GET") == "POST"
+                    and "csrf" in target["parameter"].lower()):
+                raise ScanError("CSRF 토큰은 요청 제어값이므로 SQL 인젝션 검사에서 제외했습니다.")
+            baseline_payload = None if target.get("method", "GET") == "POST" else ""
+            baseline = fetch(baseline_payload)
             self.check_page(baseline)
             if MYSQL_ERROR.search(baseline.text):
                 raise ScanError("일반 요청에도 MySQL 오류가 있어 주입 효과를 구분할 수 없습니다.")
@@ -146,7 +221,7 @@ class Scanner:
                 finding["details"]["checks"].append({"type": "error", "confirmed": False})
             boolean_started = True
             base_text = self.result_text(baseline, "")
-            if base_text != self.result_text(fetch(""), ""):
+            if base_text != self.result_text(fetch(baseline_payload), ""):
                 raise ScanError("일반 검색 결과가 반복 요청에서 변합니다.")
             # LIKE '%입력%' 및 괄호로 감싼 LIKE 조건을 각각 지원한다.
             for prefix in ("%'", "%')"):
