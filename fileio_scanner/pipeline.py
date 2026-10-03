@@ -73,7 +73,6 @@ def resolve_config(native: dict) -> dict:
         "base_url": native.get("base_url", "").rstrip("/"),
         "login_path": native.get("login_path", "/login"),
         "verify_tls": native.get("verify_tls", True),
-        "ai": native.get("ai", {}),
     }
     # 계정 → credentials (비밀번호는 env 에서)
     accounts = native.get("accounts") or {}

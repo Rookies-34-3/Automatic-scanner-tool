@@ -6,7 +6,7 @@ scan_id 를 채번한 finding 리스트와 요약을 생성한다.
 import json
 from datetime import datetime, timezone
 from .client import Client
-from . import checks_upload, checks_download, recon, ai
+from . import checks_upload, checks_download, recon
 from .finding import (SEVERITY_ORDER, RESULT_ORDER, VULNERABLE, POTENTIAL,
                       SKIPPED, skipped)
 
@@ -47,39 +47,6 @@ def run_scan(cfg, autodetect=True) -> dict:
     # 3) 실제 결과(findings)와 건너뜀(skipped) 분리
     findings = [f for f in raw if f.result != SKIPPED]
     skips = [f for f in raw if f.result == SKIPPED]
-
-    # 3.5) AI 검증(triage): 1차 의심결과를 사실 근거로 재판정
-    if ai.available(cfg):
-        judged = 0
-        for f in findings:
-            if f.result not in (VULNERABLE, POTENTIAL):
-                continue
-            v = ai.judge_finding(f.to_dict(), cfg)
-            if not v:
-                continue
-            if v.get("error"):
-                f.details["ai_error"] = v["error"]
-                continue
-            # 사람이 비교 판단할 수 있게 1차 판정/근거를 보존
-            changed = (v["verdict"] != f.result)
-            f.details["source"] = "rule+ai"
-            f.details["stage1_result"] = f.result
-            f.details["stage1_severity"] = f.severity
-            f.details["stage1_evidence"] = f.evidence
-            f.details["ai_verdict"] = v["verdict"]
-            f.details["ai_severity"] = v["severity"]
-            f.details["ai_reason"] = v["reason"]
-            f.details["ai_changed"] = changed
-            # 최종값은 AI 판정으로, evidence 엔 1차·AI 근거를 모두 표기
-            f.result = v["verdict"]
-            f.severity = v["severity"]
-            arrow = f"{f.details['stage1_result']}→{v['verdict']}" if changed else f"{v['verdict']}(유지)"
-            f.evidence = (f"[AI검증 {arrow}] {v['reason']} "
-                          f"| 1차근거: {f.details['stage1_evidence']}")
-            judged += 1
-        print(f"[ai] AI 검증 수행: {judged}건 재판정")
-    else:
-        print("[ai] AI 검증 비활성(키 없음 또는 ai.enabled=false) - 1차 규칙 판정만 사용")
 
     # 4) 번호 채번: 결과는 SCAN-###, 건너뜀은 SKIP-###
     findings.sort(key=lambda f: (RESULT_ORDER.get(f.result, 9),
@@ -126,21 +93,6 @@ def print_summary(result):
             print(f"  {f['scan_id']}  [{f['result']:<10}] [{f['severity']:<8}] "
                   f"{f['category']}")
             print(f"          {f['evidence']}")
-
-    # AI 재판정 내역 - SAFE 로 낮춘 것 포함, 모두 이유와 함께 표시(사람 검토용)
-    ai_judged = [f for f in result["findings"]
-                 if f.get("details", {}).get("ai_verdict")]
-    if ai_judged:
-        print("-" * 68)
-        print(f"  AI 재판정 내역 ({len(ai_judged)}건) - 사람 검토용:")
-        for f in ai_judged:
-            d = f["details"]
-            s1 = d.get("stage1_result")
-            ai_v = d.get("ai_verdict")
-            mark = f"{s1}→{ai_v}" if d.get("ai_changed") else f"{ai_v}(유지)"
-            print(f"  {f['scan_id']}  [{mark:<22}] {f['category']}")
-            print(f"          ↳ AI: {d.get('ai_reason','')}")
-            print(f"          ↳ 1차: {d.get('stage1_evidence','')}")
 
     skips = result.get("skipped", [])
     if skips:
