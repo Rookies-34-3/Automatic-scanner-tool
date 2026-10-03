@@ -84,18 +84,20 @@ def resolve_config(native: dict) -> dict:
     if creds:
         cfg["credentials"] = creds
 
-    # 엔드포인트 → 업로드/다운로드 경로 유도 (공통 입력 우선, 없으면 직접 지정)
+    # 엔드포인트 → 업로드/다운로드 경로 유도.
+    # runner 가 넘기는 형태({path, method})와 공통 입력({url, method, parameters}) 둘 다 수용.
     upload_path = native.get("upload_path")
     download = native.get("download")
     for ep in native.get("endpoints") or []:
-        url = ep.get("url", "")
+        # 경로: path 우선, 없으면 url 에서 추출
+        path = ep.get("path") or _path_of(ep.get("url", ""))
         method = str(ep.get("method", "GET")).upper()
-        path = _path_of(url)
         params = ep.get("parameters") or []
-        has_path_param = any(p.get("location") == "path" for p in params if isinstance(p, dict))
-        if method in ("POST", "PUT", "PATCH") and not upload_path:
+        has_path_param = any(isinstance(p, dict) and p.get("location") == "path" for p in params)
+        is_download = ("{" in path) or has_path_param
+        if method in ("POST", "PUT", "PATCH") and not is_download and not upload_path:
             upload_path = path
-        elif (method == "GET" and (has_path_param or "{" in path)) and not download:
+        elif (method == "GET" and is_download) and not download:
             # /download/{id} 형태 → 템플릿화
             tpl = path if "{" in path else path.rstrip("/") + "/{id}"
             download = {"url_template": tpl, "id_range": native.get("id_range", [1, 200])}
