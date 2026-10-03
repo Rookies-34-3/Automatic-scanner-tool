@@ -1,0 +1,61 @@
+{
+  "summary": {
+    "total_endpoints": 2,
+    "total_scans": 4,
+    "vulnerable_scans": 2
+  },
+  "results": [
+    {
+      "url": "http://13.125.233.51/pre-course/write",
+      "method": "POST",
+      "scanner": "ssrf",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "SSRF",
+          "severity": "HIGH",
+          "parameter": "url",
+          "payload": "http://internal-service:9000/health",
+          "evidence": "내부 서비스 응답이 애플리케이션 응답에 반영됨",
+          "description": "사용자가 입력한 URL을 서버가 직접 요청할 가능성이 확인됨",
+          "recommendation": "허용 목록 기반 URL 검증, 사설 IP 및 내부 호스트 차단, Redirect 재검증 적용"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/pre-course/write",
+      "method": "POST",
+      "scanner": "reflected_xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/search",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "SQL Injection",
+          "severity": "CRITICAL",
+          "parameter": "keyword",
+          "payload": "' OR '1'='1",
+          "evidence": "정상 요청과 비교하여 응답 구조가 유의미하게 변경됨",
+          "description": "입력값이 SQL 질의에 안전하게 바인딩되지 않을 가능성이 있음",
+          "recommendation": "Prepared Statement 또는 Parameterized Query 사용 및 입력값 검증"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/search",
+      "method": "GET",
+      "scanner": "reflected_xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    }
+  ]
+}
