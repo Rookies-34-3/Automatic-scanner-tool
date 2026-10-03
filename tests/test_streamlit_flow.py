@@ -258,6 +258,22 @@ class StreamlitFlowTest(unittest.TestCase):
         self.assertIn("session_expired", app.error[0].value)
         self.assertFalse(app.caption)
 
+    def test_public_root_does_not_hide_expired_session(self):
+        def open_page(request, timeout):
+            if urlsplit(request.full_url).path == "/my-class/pbl":
+                result = response(status=302)
+                result.headers["Location"] = "/login"
+                return result
+            return response("<title>Public</title>")
+
+        opener = SimpleNamespace(open=open_page)
+        with patch("urllib.request.build_opener", return_value=opener):
+            app = scan()
+        self.assertFalse(app.exception)
+        self.assertEqual(len(app.error), 1)
+        self.assertIn("보호 페이지", app.error[0].value)
+        self.assertNotIn("show_report", app.session_state)
+
     def test_counts_and_confirmed_findings_survive_incomplete_ai_text_and_summary_refresh(self):
         analysis = analysis_report({"groups": []})
         template = analysis["tool_results"][0]

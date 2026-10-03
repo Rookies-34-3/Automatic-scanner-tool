@@ -345,6 +345,25 @@ def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] 
             if method == "GET" and depth < MAX_DEPTH and not (urlsplit(url).path.startswith("/uploads/") and not urlsplit(url).path.endswith("/")):
                 queue.append((url, depth + 1))
 
+    # 공개 메인 화면이 HTTP 200을 반환해도 만료된 쿠키를 정상 세션으로 오인할 수 있다.
+    # 실제 보호 경로를 한 번 확인해 부분 탐색 결과가 전체 결과처럼 표시되지 않게 한다.
+    verify_url = _normal_url(root, "/my-class/pbl", origin)
+    if verify_url:
+        try:
+            verify_status, verify_headers, _ = fetch(verify_url)
+        except (URLError, OSError, ValueError):
+            verify_status, verify_headers = None, {}
+        verify_location = _normal_url(
+            verify_url, verify_headers.get("Location", ""), origin,
+        ) if verify_status in {301, 302, 303, 307, 308} else None
+        if verify_status in {401, 403} or (
+            verify_location and urlsplit(verify_location).path.rstrip("/") == "/login"
+        ):
+            raise ValueError(
+                "session_expired: 보호 페이지에 접근하지 못했습니다. "
+                "현재 로그인한 sslc_lab_session 쿠키를 다시 입력하세요."
+            )
+
     for starts, source in (([root, initial], "crawler"), (words, "wordlist")):
         queue = deque((url, 0) for url in starts)
         while queue:
