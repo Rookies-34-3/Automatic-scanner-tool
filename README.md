@@ -1,7 +1,7 @@
 # ROOKIESCAN
 
-Streamlit에서 대상을 입력받아 Sink를 찾고, OpenAI function call로 적절한 취약점 검사
-모듈을 선택한 뒤 결과를 보고서로 만드는 통합 도구의 설계 브랜치다.
+Streamlit에서 허가받은 대상을 입력받아 Sink를 찾고, OpenAI function call로 적절한
+취약점 검사 모듈을 선택·실행한 뒤 통합 JSON 보고서를 만드는 도구다.
 
 ## 현재 구조
 
@@ -13,7 +13,16 @@ Automatic-scanner-tool/
 ├─ report_writer.py
 ├─ .env                     # 로컬 OpenAI API 키 설정
 ├─ module/                  # 취약점 검사 function tool
-│  └─ analysis_stub.py      # 임시 함수와 AI에 전달할 tool 정의
+│  ├─ tool_registry.py      # Function tool 정의와 안전한 실행 라우터
+│  ├─ scanner_tools.py      # 팀별 스캐너 공통 입출력 어댑터
+│  ├─ contracts.py          # 공통 입력·출력 정규화
+│  ├─ authn_scanner/        # 불충분한 인증 절차
+│  ├─ authz_scanner/        # IDOR/BOLA 권한 검증
+│  ├─ sqli/                 # SQL Injection
+│  ├─ xss/                  # Reflected XSS
+│  ├─ ssrf/                 # SSRF verifier
+│  ├─ fileio_scanner/       # 파일 업로드·다운로드
+│  └─ scan/                 # 관리자 노출·디렉터리 인덱싱·포트
 ├─ docs/
 └─ output/
 ```
@@ -23,16 +32,16 @@ Sink 찾기를 누르면 입력 화면을 로딩 표시로 바꾸고, 수집 후
 경로·입력 필드·후보 tool·대표 URL 표를 `Sink 탐색 보고서` 화면에 표시한다.
 집계 결과는 `output/openai-sinks-호스트-포트-날짜시각-식별자.json`으로 저장하고,
 AI 분석 화면은 저장된 JSON을 읽어 사용한다. 새로 Sink를 찾을 때마다 별도 파일을 만든다.
-`취약점 분석하기`는 별도 AI 분석 화면으로 이동해 `취약점 분석 중`과 진행 상태를 표시하고,
-완료되면 제목을 `분석 보고서`로 바꾼다.
+`취약점 분석하기`는 별도 AI 분석 화면으로 이동해 진행 상태와 `AI 분석 보고서`를 표시한다.
 AI 화면의 `뒤로가기`는 Sink 탐색 보고서로, Sink 화면의 `뒤로가기`는 기존 입력 화면으로 돌아간다.
 AI 화면을 다시 열 때는 저장된 결과를 보여주며, 분석 실패 시 `다시 시도`를 누를 수 있다.
 `sink_finder.py`는 입력한 웹사이트의 링크·폼·JavaScript에서 엔드포인트와 입력 후보를 수집한다.
 AWS에 배포한 도메인이나 공인 IP도 `http` 또는 `https` URL로 입력할 수 있으며,
 크롤러는 입력 URL과 동일한 출처의 주소만 방문한다.
-`openai_module.py`는 전달 데이터 집계와 `gpt-6.1-sol`의 Responses API 호출을 담당한다.
-현재는 각 대표 요청의 후보 도구를 순서대로 임시 함수에 전달하고, 반환값을 AI에 전달해 후보를 설명한다.
-진행 표시에는 처리 순서·메서드·경로·후보 유형이 나온다. 실제 취약점 검증은 추후 연결한다.
+`openai_module.py`는 전달 데이터 집계와 Responses API function call을 담당한다.
+AI가 Sink 후보에 허용된 함수만 선택하면 애플리케이션이 로컬 스캐너를 실행하고 결과를
+AI에 돌려줘 근거를 요약한다. 세션 쿠키와 자격 증명은 AI 입력에 포함하지 않는다.
+`report_writer.py`는 공통 finding과 대시보드용 그룹을 함께 가진 최종 JSON을 생성한다.
 
 ## OpenAI 전달용 집계
 
@@ -51,25 +60,40 @@ Streamlit은 원본을 `st.session_state["sinks"]`에, 전달용 요약을
 
 ## `module/`
 
-다른 브랜치에서 완성한 SQLi, XSS 등의 취약점 검사 파일을 가져와 두는 위치다. 각 파일은
-URL, HTTP 메서드, 파라미터를 입력받아 검사 결과를 반환하는 함수를 제공한다.
+각 Function tool의 AI 공개 입력은 다음 세 필드로 통일한다.
 
-`openai_module.py`는 이 함수들을 OpenAI function tool로 등록한다. 모델이 사용할 도구를
-선택하면 애플리케이션이 해당 함수를 실행하고 결과를 모델에 돌려준다.
+```json
+{"url":"https://target/path","method":"GET","parameters":[{"name":"id","location":"path"}]}
+```
 
-현재 등록된 함수는 `analyze_endpoint_stub(url, method, parameters, vulnerability_type)` 하나다.
-AI가 요청한 URL·메서드·입력 필드·후보 유형이 현재 대표 요청과 일치할 때만 호출한다.
-이 함수는 입력 정보와 `status: "stub"`, `verified: false`를 반환하며 네트워크 요청을 하지 않는다.
-`groups → request_variants → candidate_tools` 순서로 처리하고, 요청 형태에 후보 도구가 생략되면
-그룹의 목록을 사용한다. 후보 도구 하나당 API 요청은 호출 선택과 짧은 결과 설명의 두 번이다.
-후보 도구가 없는 요청은 API 호출 없이 `skipped`로 기록하고, 항목 오류가 나면 다음 항목을 계속 처리한다.
-API 키와 세션 쿠키는 AI 입력에 포함하지 않는다. 분석 결과는 세션에 저장해 화면 재실행 시 재호출하지 않는다.
+세션 쿠키는 Streamlit에서 받은 뒤 `execute_tool()`이 로컬 실행 시점에만 주입한다.
+공통 출력은 `scanner_id`, `name`, `url`, `method`, `parameters`, `vuln`, `result`,
+`severity`, `details`를 사용하며 `vuln`은 `VULNERABLE`, `PASS`, `REVIEW`, `ERROR` 중 하나다.
 
-분석 결과는 `output/analysis-results-호스트-포트-날짜시각-식별자.json`에 기록한다.
-원본 탐색 파일명은 `source_json`에 남기며, `results`의 항목에는 URL·메서드·경로 템플릿·발견 수·
-입력 필드·후보 유형·판정·결과가 들어간다. 모든 항목을 `pending`으로 먼저 저장한 뒤 매 항목 종료 시
-파일을 갱신한다. 현재 스텁 처리는 `inconclusive`(미검증), 실패는 `error`, 후보 없음은 `skipped`다.
-파일 쓰기 실패 시에는 분석을 중단해 저장되지 않은 결과를 완료로 표시하지 않는다.
+등록 함수는 `scan_sqli`, `scan_reflected_xss`, `scan_ssrf`, `scan_authn`, `scan_authz`,
+`scan_fileio`, `scan_admin_exposure`, `scan_directory_indexing`, `scan_portscan`이다.
+
+초기 `main`에서 정의한 `module/analysis_stub.py`의
+`analyze_endpoint_stub(url, method, parameters, vulnerability_type)` 계약도 그대로 유지한다.
+이제 이 함수는 임시 결과를 반환하지 않고 `vulnerability_type`을 실제 등록 스캐너로 연결한다.
+새 Function tool은 더 구체적인 함수명을 사용하지만, 기존 stub 호출부도 깨지지 않는다.
+
+AI 없이 어댑터 하나를 직접 확인할 때는 다음처럼 호출할 수 있다. 실제 세션 값은 코드나
+설정 파일에 저장하지 말고 실행 시점에만 전달한다.
+
+```python
+from module.tool_registry import execute_tool
+
+findings = execute_tool(
+    "scan_sqli",
+    {
+        "url": "http://127.0.0.1:8080/search",
+        "method": "GET",
+        "parameters": [{"name": "content", "location": "query"}],
+    },
+    session_cookie="",
+)
+```
 
 ## 실행
 
@@ -77,6 +101,7 @@ API 키와 세션 쿠키는 AI 입력에 포함하지 않는다. 분석 결과�
 
 ```dotenv
 OPENAI_API_KEY=여기에_발급받은_키
+OPENAI_MODEL=gpt-6.1-sol
 ```
 
 `get_openai_client()`는 `python-dotenv`로 해당 파일을 읽어 클라이언트를 만든다.
@@ -87,7 +112,22 @@ python -m pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-## 예정 흐름
+계정 기반 스캐너 설정은 필요할 때만 환경변수로 지정한다. 설정 파일과 비밀번호는 Git에
+올리지 않는다.
+
+```dotenv
+ROOKIESCAN_AUTHN_CONFIG=C:/private/authn.json
+ROOKIESCAN_AUTHZ_CONFIG=C:/private/authz.json
+ROOKIESCAN_FILEIO_CONFIG=C:/private/fileio.json
+ROOKIESCAN_PASSWORD=실습계정비밀번호
+SSRF_VERIFIER_PAYLOAD_URL=http://ssrf-verifier:9001/check
+SSRF_VERIFIER_STATUS_URL=https://target/ssrf-verify/status
+```
+
+안전한 설정 템플릿은 `examples/*-config.example.json`, 최종 대시보드 입력 예시는
+`examples/final-output.example.json`에서 확인할 수 있다.
+
+## 통합 흐름
 
 ```text
 Streamlit 입력
@@ -95,13 +135,11 @@ Streamlit 입력
     → 경로별 집계와 입력 형태 보존
     → OpenAI function call
     → module/의 취약점 검사 함수 실행
-    → 보고서 생성
+    → 공통 스키마 정규화
+    → output/scan-results-*.json 생성
 ```
-
-다른 브랜치에서 완성한 SQLi, XSS 등의 검사 코드는 먼저 `main`으로 병합하거나 필요한
-파일만 `module/`로 가져온다. function call은 다른 Git 브랜치의 파일을 직접 불러오지
-않는다.
 
 - [구조 설계](docs/ARCHITECTURE.md)
 - [Sink 탐색 설계](docs/SINK_FINDER_DESIGN.md)
 - [보고서 형태](docs/REPORT_SPEC.md)
+- [스캐너 실행 메서드](docs/SCANNER_METHODS.md)

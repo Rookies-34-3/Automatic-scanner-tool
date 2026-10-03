@@ -1,7 +1,6 @@
 """URL과 세션 정보를 받아 엔드포인트의 Sink 후보를 찾을 모듈.
 
 출력 형식: URL, HTTP 메서드, 파라미터, Sink 후보를 담은 JSON 목록.
-구현은 다음 단계에서 추가한다.
 """
 
 import re
@@ -172,9 +171,14 @@ def _classify(endpoint):
     if "multipart/form-data" in endpoint.get("enctype", "") and not any(c["type"] == "file_upload" for c in candidates):
         candidates.append({"type": "file_upload", "tools": ["fileio"], "reason": "multipart form"})
     if path.rstrip("/") == "/admin":
-        candidates.append({"type": "missing_admin_auth", "tools": ["authz"], "reason": "관리 경로 후보. 인증 누락은 미검증"})
+        candidates.append({"type": "missing_admin_auth", "tools": ["admin_exposure", "authn"],
+                           "reason": "관리 경로 후보. 비로그인 접근과 인증 누락은 미검증"})
     if endpoint.get("directory_listing"):
-        candidates.append({"type": "directory_indexing", "tools": ["fileio"], "reason": "응답 제목에 Index of가 있음"})
+        candidates.append({"type": "directory_indexing", "tools": ["directory_indexing"],
+                           "reason": "응답 제목에 Index of가 있음"})
+    if path == "/":
+        candidates.append({"type": "network_exposure", "tools": ["portscan"],
+                           "reason": "대상 호스트의 허용 포트 기준 점검 후보"})
     if path.startswith("/uploads/"):
         candidates.append({"type": "public_file_access", "tools": ["fileio", "authz"],
                            "reason": "업로드 경로 후보. 공개 접근 여부는 미검증"})

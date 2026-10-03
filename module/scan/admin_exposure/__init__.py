@@ -1,0 +1,1 @@
+"""Administrative page exposure scanner."""

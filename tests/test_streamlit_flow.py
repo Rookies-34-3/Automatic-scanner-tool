@@ -14,7 +14,6 @@ from openai import OpenAIError
 import openai_module
 import report_writer
 import sink_finder
-from module.analysis_stub import analyze_endpoint_stub
 
 
 APP = Path(__file__).resolve().parents[1] / "streamlit_app.py"
@@ -29,27 +28,25 @@ def response(body="", status=200):
 
 
 def scan(app=None):
-    app = app or AppTest.from_file(str(APP), default_timeout=10).run()
+    app = app or AppTest.from_file(str(APP)).run()
     app.text_input[0].set_value("http://127.0.0.1:8080/")
     app.text_input[1].set_value("test-cookie")
     return app.button[0].click().run()
 
 
-def analysis_report(payload, on_progress=None, source_json=None, target_url=None):
+def analysis_report(payload, session_cookie="", scanner_options=None, on_progress=None):
     if on_progress:
-        on_progress("임시 모듈 처리 완료")
+        on_progress("스캐너 처리 완료")
     return {
         "model": "gpt-6.1-sol", "group_count": len(payload["groups"]),
-        "task_count": 1, "completed_count": 1, "status": "completed",
-        "result_file": "analysis-results-test.json",
-        "summary": "입력 지점 후보를 검토했습니다. 실제 검증은 미수행입니다.",
-        "results": [{
-            "url": "http://127.0.0.1:8080/search", "method": "GET", "parameters": [
-                {"name": "content", "location": "query"},
-            ], "vulnerability_type": "sqli", "verdict": "inconclusive",
-            "result": analyze_endpoint_stub("http://127.0.0.1:8080/search", "GET", [
-                {"name": "content", "location": "query"},
-            ], "sqli"),
+        "tool_call_count": 1,
+        "summary": "입력 지점에 실제 스캐너를 실행했습니다.",
+        "tool_results": [{
+            "scanner_id": "sqli", "name": "SQL Injection",
+            "url": "http://127.0.0.1:8080/search", "method": "GET",
+            "parameters": [{"name": "content", "location": "query"}],
+            "vuln": "PASS", "result": "취약점 증거가 확인되지 않았습니다.",
+            "severity": "NONE", "details": {},
         }],
     }
 
@@ -88,7 +85,10 @@ class StreamlitFlowTest(unittest.TestCase):
         def open_page(request, timeout):
             requested.append(request.full_url)
             if urlsplit(request.full_url).path == "/":
-                return response('<a href="/search">Search</a><a href="https://other.example/outside">Outside</a>')
+                return response(
+                    '<a href="/search">Search</a>'
+                    '<a href="https://other.example/outside">Outside</a>'
+                )
             return response("<title>Page</title>")
 
         opener = SimpleNamespace(open=open_page)
@@ -141,9 +141,11 @@ class StreamlitFlowTest(unittest.TestCase):
         self.assertEqual(len(app.session_state["openai_sinks"]["groups"]), 5)
         self.assertEqual(len(app.dataframe), 1)
         self.assertEqual([heading.value for heading in app.subheader], ["분석 보고서"])
-        self.assertEqual(app.session_state["analysis_result"]["results"][0]["result"]["verified"], False)
-        self.assertTrue(any("분석 결과 JSON:" in item.value for item in app.caption))
-        self.assertTrue(any("실제 검증 미수행" in item.value for item in app.caption))
+        self.assertEqual(app.session_state["analysis_result"]["tool_results"][0]["vuln"], "PASS")
+        self.assertTrue(any("스캐너 호출 1회" in item.value for item in app.caption))
+        final_path = Path(app.session_state["analysis_result"]["json_path"])
+        self.assertTrue(final_path.exists())
+        self.assertNotIn("test-cookie", final_path.read_text(encoding="utf-8"))
 
     def test_none_is_visible_and_preserves_previous_results(self):
         app = AppTest.from_file(str(APP)).run()

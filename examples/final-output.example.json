@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-10-03T10:30:00+00:00",
+  "target": "http://127.0.0.1:8080",
+  "summary": {
+    "total_endpoints": 1,
+    "total_scans": 1,
+    "total_findings": 1,
+    "vulnerable_scans": 1,
+    "vulnerable": 1,
+    "pass": 0,
+    "review": 0,
+    "error": 0
+  },
+  "results": [
+    {
+      "url": "http://127.0.0.1:8080/search",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "SQL Injection",
+          "severity": "HIGH",
+          "parameter": "content",
+          "payload": null,
+          "evidence": "반복 검사에서 SQL 오류 증거가 확인되었습니다.",
+          "description": "반복 검사에서 SQL 오류 증거가 확인되었습니다.",
+          "recommendation": "파라미터 바인딩을 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://127.0.0.1:8080/search",
+      "method": "GET",
+      "parameters": [
+        {"name": "content", "location": "query"}
+      ],
+      "vuln": "VULNERABLE",
+      "result": "반복 검사에서 SQL 오류 증거가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {}
+    }
+  ],
+  "ai": {
+    "model": "gpt-6.1-sol",
+    "summary": "SQL Injection 취약점 증거가 확인되었습니다.",
+    "tool_call_count": 1
+  }
+}

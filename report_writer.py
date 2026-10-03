@@ -1,18 +1,18 @@
 """각 취약점 모듈의 결과를 모아 최종 보고서를 작성할 모듈.
 
-JSON을 기준 결과로 사용하고 Streamlit 화면과 HTML 보고서로 표현할 예정이다.
-구현은 다음 단계에서 추가한다.
+공통 finding과 대시보드 호환 results를 함께 가진 JSON을 기준 결과로 사용한다.
 """
 
 import json
 import re
-from datetime import datetime
+from collections import OrderedDict
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
 
-def save_sink_summary(summary: dict, target_url: str, prefix: str = "openai-sinks") -> Path:
+def save_sink_summary(summary: dict, target_url: str) -> Path:
     """Sink 집계 결과를 호스트별 고유 JSON 파일로 저장한다."""
     parts = urlsplit(target_url)
     host = re.sub(r"[^A-Za-z0-9.-]", "-", (parts.hostname or "target").encode("idna").decode("ascii"))
@@ -21,15 +21,107 @@ def save_sink_summary(summary: dict, target_url: str, prefix: str = "openai-sink
     output_dir = Path(__file__).resolve().parent / "output"
     output_dir.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    path = output_dir / f"{prefix}-{host}-{stamp}-{uuid4().hex[:8]}.json"
+    path = output_dir / f"openai-sinks-{host}-{stamp}-{uuid4().hex[:8]}.json"
     with path.open("x", encoding="utf-8") as output:
         json.dump(summary, output, ensure_ascii=False, separators=(",", ":"))
     return path
 
 
-def update_analysis_report(report: dict, path: Path) -> None:
-    """현재 실행의 결과 파일을 갱신한다. 쓰기가 끝나야 이전 파일을 교체한다."""
-    temporary = path.with_suffix(".tmp")
-    with temporary.open("w", encoding="utf-8") as output:
-        json.dump(report, output, ensure_ascii=False, separators=(",", ":"))
-    temporary.replace(path)
+SENSITIVE_KEY = re.compile(r"(?i)(?:password|passwd|secret|token|cookie|authorization|api[_-]?key)")
+
+
+def redact_sensitive(value):
+    """Remove credentials from any data written to the final report."""
+    if isinstance(value, dict):
+        return {
+            key: "[REDACTED]" if SENSITIVE_KEY.search(str(key)) else redact_sensitive(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact_sensitive(item) for item in value]
+    return value
+
+
+def build_scan_report(target_url: str, analysis: dict) -> dict:
+    """Build the canonical finding list plus the dashboard-compatible grouped view."""
+    findings = redact_sensitive(analysis.get("tool_results", []))
+    grouped = OrderedDict()
+    for finding in findings:
+        key = (finding["url"], finding["method"], finding["scanner_id"])
+        result = grouped.setdefault(key, {
+            "url": finding["url"],
+            "method": finding["method"],
+            "scanner": finding["scanner_id"],
+            "status": "completed",
+            "vulnerable": False,
+            "findings": [],
+        })
+        result["vulnerable"] = result["vulnerable"] or finding["vuln"] == "VULNERABLE"
+        if finding["vuln"] == "ERROR":
+            result["status"] = "error"
+        if finding["vuln"] == "PASS":
+            continue
+        details = finding.get("details") or {}
+        raw = details.get("raw_result")
+        payload = details.get("payload")
+        if payload is None and isinstance(raw, dict):
+            payload = raw.get("payload")
+        if payload is None and isinstance(raw, list):
+            payload = next(
+                (item.get("payload") for item in raw
+                 if isinstance(item, dict) and item.get("payload")),
+                None,
+            )
+        result["findings"].append({
+            "type": finding["name"],
+            "severity": finding["severity"],
+            "parameter": ", ".join(item["name"] for item in finding["parameters"]),
+            "payload": payload,
+            "evidence": finding["result"],
+            "description": finding["result"],
+            "recommendation": details.get("remediation", "해당 기능의 입력 검증과 접근 제어를 적용하세요."),
+            "vuln": finding["vuln"],
+        })
+
+    results = list(grouped.values())
+    counts = {status: sum(item["vuln"] == status for item in findings)
+              for status in ("VULNERABLE", "PASS", "REVIEW", "ERROR")}
+    endpoint_count = len({(item["url"], item["method"]) for item in findings})
+    return {
+        "schema_version": "1.0.0",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "target": target_url,
+        "summary": {
+            "total_endpoints": endpoint_count,
+            "total_scans": len(results),
+            "total_findings": len(findings),
+            "vulnerable_scans": sum(item["vulnerable"] for item in results),
+            "vulnerable": counts["VULNERABLE"],
+            "pass": counts["PASS"],
+            "review": counts["REVIEW"],
+            "error": counts["ERROR"],
+        },
+        "results": results,
+        "findings": findings,
+        "ai": {
+            "model": analysis.get("model"),
+            "summary": analysis.get("summary", ""),
+            "tool_call_count": analysis.get("tool_call_count", 0),
+        },
+    }
+
+
+def save_scan_report(report: dict, target_url: str) -> Path:
+    """Save one immutable final JSON report and return its path."""
+    parts = urlsplit(target_url)
+    host = re.sub(r"[^A-Za-z0-9.-]", "-", (parts.hostname or "target").encode("idna").decode("ascii"))
+    if parts.port:
+        host += f"-{parts.port}"
+    output_dir = Path(__file__).resolve().parent / "output"
+    output_dir.mkdir(exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    path = output_dir / f"scan-results-{host}-{stamp}-{uuid4().hex[:8]}.json"
+    with path.open("x", encoding="utf-8") as output:
+        json.dump(redact_sensitive(report), output, ensure_ascii=False, indent=2)
+        output.write("\n")
+    return path

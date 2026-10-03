@@ -1,0 +1,1 @@
+"""Directory indexing scanner."""
