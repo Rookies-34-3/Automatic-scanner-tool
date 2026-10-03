@@ -37,7 +37,7 @@ def _schema(name: str) -> dict[str, Any]:
                         "type": "object",
                         "properties": {
                             "name": {"type": "string"},
-                            "location": {"type": "string", "enum": ["path", "query", "body", "form", "header"]},
+                            "location": {"type": "string", "enum": ["path", "query", "body", "form", "json", "header"]},
                         },
                         "required": ["name", "location"],
                         "additionalProperties": False,

@@ -112,6 +112,23 @@ class ScannerIntegrationTest(unittest.TestCase):
         self.assertEqual(findings[0]["vuln"], "PASS")
         self.assertEqual(findings[0]["parameters"], [{"name": "content", "location": "body"}])
 
+    def test_sqli_skips_control_file_and_path_parameters(self):
+        native = {
+            "url": ARGS["url"], "method": "GET", "parameters": "content",
+            "vuln": "SAFE", "result": {"evidence": "미탐지"}, "severity": "NONE",
+        }
+        parameters = [
+            {"name": "path_id_1", "location": "path"},
+            {"name": "csrf_token", "location": "form"},
+            {"name": "file", "location": "form"},
+            {"name": "content", "location": "query"},
+        ]
+        with patch.object(scanner_tools, "run_sqli_native", return_value=native) as run:
+            findings = scanner_tools.scan_sqli(ARGS["url"], "GET", parameters)
+        run.assert_called_once()
+        self.assertEqual(run.call_args.args[2], "content")
+        self.assertEqual(findings[0]["parameters"], [{"name": "content", "location": "query"}])
+
     def test_xss_request_error_is_not_reported_as_pass(self):
         raw = {
             "url": ARGS["url"], "method": "GET", "parameters": {"content": ""},
@@ -123,6 +140,14 @@ class ScannerIntegrationTest(unittest.TestCase):
                 ARGS["url"], "GET", ARGS["parameters"], "",
             )
         self.assertEqual(findings[0]["vuln"], "ERROR")
+
+    def test_xss_http_error_is_review_not_pass(self):
+        response = SimpleNamespace(status_code=400, url=ARGS["url"], text="", content=b"")
+        with patch.object(scanner_tools.ReflectedXSSScanner, "_send", return_value=response):
+            findings = scanner_tools.scan_reflected_xss(
+                ARGS["url"], "GET", ARGS["parameters"], "",
+            )
+        self.assertEqual(findings[0]["vuln"], "REVIEW")
 
     def test_xss_adapter_runs_context_check_and_reports_reflection(self):
         def reflect(_scanner, _target, _parameter, value):
@@ -186,6 +211,66 @@ class ScannerIntegrationTest(unittest.TestCase):
         self.assertNotIn("password_env", account)
         self.assertNotIn("runtime-secret", json.dumps(findings, ensure_ascii=False))
 
+    def test_authn_can_use_in_memory_lab_password(self):
+        config = {
+            "valid_credential": {"username": "admin", "password_env": "PRIVATE"},
+        }
+        raw = {"findings": [{
+            "result": "PASS", "reason": "차단됨", "path": "/admin",
+            "method": "GET", "parameters": [], "severity": "NONE",
+        }]}
+        with patch.object(scanner_tools, "_load_example_config", return_value=config), \
+                patch.object(scanner_tools, "run_authn_config", return_value=raw) as run:
+            findings = scanner_tools.scan_authn(
+                "http://127.0.0.1:8080/admin", "GET", [],
+                options={"lab_password": "runtime-secret"},
+            )
+        credential = run.call_args.args[0]["valid_credential"]
+        self.assertEqual(credential["password"], "runtime-secret")
+        self.assertNotIn("runtime-secret", json.dumps(findings, ensure_ascii=False))
+
+    def test_authz_can_create_two_runtime_sessions_from_lab_password(self):
+        config = {
+            "authentication": {"type": "form_session"},
+            "accounts": {
+                "owner": {"username": "student1", "password_env": "PRIVATE"},
+                "other_user": {"username": "student2", "password_env": "PRIVATE"},
+            },
+        }
+
+        def context(cookie_value):
+            return SimpleNamespace(cookies=[SimpleNamespace(
+                name="sslc_lab_session", value=cookie_value,
+            )])
+
+        def http_response(body, status=200, location=""):
+            return SimpleNamespace(
+                status_code=status, text=body, content=body.encode(),
+                headers={"Location": location} if location else {},
+            )
+
+        protected = "private-profile:" + "x" * 120
+        options = {"lab_password": "runtime-secret"}
+        with patch.object(scanner_tools, "_load_example_config", return_value=config), \
+                patch.object(scanner_tools, "build_authz_context", side_effect=[
+                    context("owner-cookie"), context("attacker-cookie"),
+                ]) as login, \
+                patch.object(scanner_tools, "_request", side_effect=[
+                    http_response(protected), http_response(protected),
+                    http_response("", 302, "/login"),
+                ]):
+            findings = scanner_tools.scan_authz(
+                "http://127.0.0.1:8080/api/profiles/1", "GET",
+                [{"name": "id", "location": "path"}],
+                options=options,
+            )
+        self.assertEqual(login.call_count, 2)
+        self.assertEqual(findings[0]["vuln"], "VULNERABLE")
+        serialized = json.dumps(findings, ensure_ascii=False)
+        self.assertNotIn("runtime-secret", serialized)
+        self.assertNotIn("owner-cookie", serialized)
+        self.assertNotIn("attacker-cookie", serialized)
+
     def test_authz_compares_two_runtime_sessions_without_storing_cookies(self):
         def http_response(body, status=200, location=""):
             return SimpleNamespace(
@@ -212,6 +297,24 @@ class ScannerIntegrationTest(unittest.TestCase):
         serialized = json.dumps(findings, ensure_ascii=False)
         self.assertNotIn("owner-cookie", serialized)
         self.assertNotIn("attacker-cookie", serialized)
+
+    def test_authz_does_not_flag_a_public_resource_as_idor(self):
+        def http_response(body):
+            return SimpleNamespace(
+                status_code=200, text=body, content=body.encode(), headers={},
+            )
+
+        public = "shared-resource:" + "x" * 120
+        with patch.object(scanner_tools, "_request", side_effect=[
+            http_response(public), http_response(public), http_response(public),
+        ]):
+            findings = scanner_tools.scan_authz(
+                "http://127.0.0.1:8080/customer/resources/1", "GET",
+                [{"name": "id", "location": "path"}],
+                "owner-cookie", {"authz_attacker_cookie": "attacker-cookie"},
+            )
+        self.assertEqual(findings[0]["vuln"], "PASS")
+        self.assertIn("공개된 자원", findings[0]["result"])
 
     def test_final_report_has_common_and_dashboard_views_and_redacts_secrets(self):
         analysis = {

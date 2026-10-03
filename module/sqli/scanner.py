@@ -86,10 +86,16 @@ class Scanner:
         selector = self.config.get("result_selector", "tbody")
         regions = document.select(selector)
         if not regions:
-            raise ScanError(f"검색 결과 영역을 찾지 못했습니다. result_selector 확인: {selector}")
+            # Not every searchable page uses a table. Fall back to normalized
+            # page content while removing forms/navigation so reflected input
+            # and session-specific chrome do not become Boolean evidence.
+            fallback = document.select_one("main") or document.select_one("body")
+            if fallback is None:
+                raise ScanError("비교할 응답 본문을 찾지 못했습니다.")
+            regions = [fallback]
         # 검색창, 스크립트 및 반사된 페이로드를 비교에서 제외한다.
         for region in regions:
-            for node in region.select("script, style, input, textarea"):
+            for node in region.select("script, style, input, textarea, form, nav, header, footer"):
                 node.decompose()
         text = " ".join(region.get_text(" ", strip=True) for region in regions)
         return " ".join(text.replace(payload, "").split()) if payload else " ".join(text.split())

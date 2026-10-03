@@ -89,17 +89,26 @@ class OpenAIAnalysisTest(unittest.TestCase):
                 session_cookie="private-cookie",
                 on_progress=progress.append,
             )
-        execute.assert_called_once()
-        self.assertEqual(execute.call_args.kwargs["session_cookie"], "private-cookie")
+        self.assertEqual(execute.call_count, 2)
+        self.assertEqual(
+            {call.args[0] for call in execute.call_args_list},
+            {"scan_sqli", "scan_reflected_xss"},
+        )
+        self.assertTrue(all(
+            call.kwargs["session_cookie"] == "private-cookie"
+            for call in execute.call_args_list
+        ))
         self.assertEqual(client.responses.create.call_count, 2)
-        self.assertEqual(report["tool_call_count"], 1)
-        self.assertEqual(report["tool_results"], [FINDING])
+        self.assertEqual(report["tool_call_count"], 2)
+        self.assertEqual(report["tool_results"], [FINDING, FINDING])
         continuation = client.responses.create.call_args.kwargs
         self.assertEqual(continuation["tool_choice"], "none")
         self.assertFalse(continuation["store"])
-        self.assertEqual(continuation["input"][-2]["type"], "function_call")
-        self.assertEqual(continuation["input"][-1]["call_id"], "call_test")
-        self.assertEqual(json.loads(continuation["input"][-1]["output"]), [FINDING])
+        self.assertEqual(continuation["input"][-3]["type"], "function_call")
+        self.assertEqual(continuation["input"][-2]["call_id"], "call_test")
+        self.assertEqual(json.loads(continuation["input"][-2]["output"]), [FINDING])
+        supplemental = json.loads(continuation["input"][-1]["content"])
+        self.assertEqual(supplemental["supplemental_tool_results"], [FINDING])
         self.assertNotIn("private-cookie", json.dumps(continuation, default=str))
 
     def test_uncollected_or_mismatched_tool_is_rejected_before_execution(self):

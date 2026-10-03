@@ -36,7 +36,7 @@ if not st.session_state.get("show_report", False):
     with panel.container():
         target_url = st.text_input("대상 URL", value=saved_inputs[0])
         session_cookie = st.text_input("세션 쿠키", value=saved_inputs[1], type="password")
-        with st.expander("선택 설정 (교차 계정·파일 검사)"):
+        with st.expander("전체 스캔 설정 (교차 계정·파일 검사)"):
             authz_attacker_cookie = st.text_input(
                 "다른 사용자 세션 쿠키",
                 value=st.session_state.get("authz_attacker_cookie", ""),
@@ -47,7 +47,8 @@ if not st.session_state.get("show_report", False):
                 "실습 계정 공통 비밀번호",
                 value=st.session_state.get("lab_password", ""),
                 type="password",
-                help="파일 업로드·다운로드 계정 검사에만 메모리에서 사용하며 저장하지 않습니다.",
+                help=("인증·인가 및 파일 업로드·다운로드 검사에 메모리에서만 사용하며 저장하지 않습니다. "
+                      "전체 계정 기반 판정을 원하면 이 값 또는 다른 사용자 세션 쿠키가 필요합니다."),
             )
             ssrf_verifier_payload_url = st.text_input(
                 "SSRF 검증 요청 URL (선택)",

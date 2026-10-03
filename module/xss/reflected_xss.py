@@ -41,6 +41,24 @@ class ReflectedXSSScanner:
                 "reason": f"request error: {e}"
             }
 
+        if getattr(response, "status_code", 200) >= 400:
+            return {
+                "parameter": parameter,
+                "vulnerable": False,
+                "inconclusive": True,
+                "status_code": response.status_code,
+                "reason": f"HTTP {response.status_code} 응답으로 반사 여부를 판정할 수 없습니다."
+            }
+
+        if "/login" in getattr(response, "url", "") and "/login" not in target["url"]:
+            return {
+                "parameter": parameter,
+                "vulnerable": False,
+                "inconclusive": True,
+                "status_code": response.status_code,
+                "reason": "로그인 페이지로 이동되어 반사 여부를 판정할 수 없습니다."
+            }
+
         # 1. 입력값 반사 여부 확인
         if canary not in response.text:
             return {
@@ -63,6 +81,16 @@ class ReflectedXSSScanner:
                 "vulnerable": False,
                 "context": context,
                 "reason": f"payload request error: {e}"
+            }
+
+        if getattr(payload_response, "status_code", 200) >= 400:
+            return {
+                "parameter": parameter,
+                "vulnerable": False,
+                "inconclusive": True,
+                "context": context,
+                "status_code": payload_response.status_code,
+                "reason": f"Payload 요청이 HTTP {payload_response.status_code}를 반환했습니다."
             }
 
         # 4. Payload가 그대로 반사되는지 확인

@@ -10,12 +10,13 @@ from copy import deepcopy
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import requests
 
 from .authn_scanner import run_scan as run_authn_config
 from .authz_scanner import run_scan as run_authz_config
+from .authz_scanner.http_auth import build_auth_context as build_authz_context
 from .contracts import (
     cookie_dict,
     cookie_header,
@@ -35,6 +36,11 @@ from .xss.reflected_xss import ReflectedXSSScanner
 
 
 Options = dict[str, Any] | None
+
+_CONTROL_PARAMETER_NAMES = {
+    "csrf", "csrf_token", "_csrf", "token", "action", "submit",
+    "file", "files", "upload", "attachment", "taskresult",
+}
 
 
 def _origin(url: str) -> str:
@@ -85,6 +91,58 @@ def _inject_runtime_password(config: dict[str, Any], password: str) -> dict[str,
     return copied
 
 
+def _runtime_password(options: Options) -> str:
+    """Resolve a lab password without copying it into scanner output."""
+    options = options or {}
+    return str(
+        options.get("lab_password")
+        or os.getenv("ROOKIESCAN_PASSWORD")
+        or os.getenv("SSLC_LAB_PASSWORD")
+        or ""
+    )
+
+
+def _injectable_parameters(parameters: Any) -> list[dict[str, Any]]:
+    """Keep only values that injection scanners can actually mutate."""
+    usable = []
+    seen = set()
+    for parameter in normalize_parameters(parameters):
+        name = parameter["name"]
+        location = parameter["location"].lower()
+        if location not in {"query", "form", "body", "json"}:
+            continue
+        if name.lower() in _CONTROL_PARAMETER_NAMES:
+            continue
+        key = (name, location)
+        if key not in seen:
+            seen.add(key)
+            usable.append(parameter)
+    return usable
+
+
+def _runtime_authz_cookies(
+    options: dict[str, Any], url: str, password: str, timeout: float,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Log in the two documented lab accounts once and cache cookies in memory."""
+    base_url = _origin(url)
+    cache = options.setdefault("_authz_cookie_cache", {})
+    if base_url in cache:
+        return cache[base_url]
+
+    config = _inject_runtime_password(
+        _load_example_config("authz-config.example.json"), password,
+    )
+    authentication = config["authentication"]
+    pair = []
+    for label in ("owner", "other_user"):
+        context = build_authz_context(
+            base_url, authentication, config["accounts"][label], label, timeout,
+        )
+        pair.append({cookie.name: cookie.value for cookie in (context.cookies or [])})
+    cache[base_url] = (pair[0], pair[1])
+    return cache[base_url]
+
+
 def _normalize_many(
     raws: list[dict[str, Any]], scanner_id: str, name: str,
     url: str, method: str, parameters: Any,
@@ -104,9 +162,13 @@ def _normalize_many(
 
 def scan_sqli(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
     findings = []
-    for parameter in normalize_parameters(parameters):
-        if parameter["location"] == "header":
-            continue
+    injectable = _injectable_parameters(parameters)
+    if method.upper() not in {"GET", "POST"}:
+        return [review_finding(
+            "sqli", "SQL Injection", url, method, injectable,
+            f"{method.upper()} 요청은 현재 SQLi 모듈의 안전한 자동 검사 범위가 아닙니다.",
+        )]
+    for parameter in injectable:
         raw = run_sqli_native(
             url, method, parameter["name"], cookie_dict(session_cookie),
         )
@@ -121,15 +183,26 @@ def scan_sqli(url: str, method: str, parameters: Any, session_cookie: Any = "", 
         ))
     return findings or [review_finding(
         "sqli", "SQL Injection", url, method, parameters,
-        "점검할 쿼리 또는 본문 파라미터가 없습니다.",
+        "점검할 사용자 입력 쿼리 또는 본문 파라미터가 없습니다.",
     )]
 
 
 def scan_reflected_xss(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
+    injectable = _injectable_parameters(parameters)
+    if method.upper() not in {"GET", "POST"}:
+        return [review_finding(
+            "xss", "Reflected XSS", url, method, injectable,
+            f"{method.upper()} 요청은 현재 XSS 모듈의 안전한 자동 검사 범위가 아닙니다.",
+        )]
+    if not injectable:
+        return [review_finding(
+            "xss", "Reflected XSS", url, method, parameters,
+            "점검할 사용자 입력 쿼리 또는 본문 파라미터가 없습니다.",
+        )]
     target = {
         "url": url,
         "method": method,
-        "parameters": parameter_values(parameters),
+        "parameters": parameter_values(injectable),
         "session_cookie": cookie_header(session_cookie),
     }
     timeout = float((options or {}).get("timeout", 5))
@@ -138,12 +211,18 @@ def scan_reflected_xss(url: str, method: str, parameters: Any, session_cookie: A
         raw = scanner.scan(target)
     finally:
         scanner.session.close()
-    raw["parameters"] = public_parameters(parameters)
+    raw["parameters"] = public_parameters(injectable)
     if any(
         "request error" in str(item.get("reason", "")).lower()
         for item in raw.get("result", []) if isinstance(item, dict)
     ):
         raw["vuln"] = "ERROR"
+        raw["severity"] = "INFO"
+    elif any(
+        item.get("inconclusive")
+        for item in raw.get("result", []) if isinstance(item, dict)
+    ):
+        raw["vuln"] = "REVIEW"
         raw["severity"] = "INFO"
     return [normalize_finding(
         raw,
@@ -175,13 +254,14 @@ def scan_portscan(url: str, method: str, parameters: Any, session_cookie: Any = 
 def scan_fileio(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
     options = options or {}
     native = _load_config(options, "fileio_config", "ROOKIESCAN_FILEIO_CONFIG")
-    runtime_password = str(options.get("lab_password") or "")
+    runtime_password = _runtime_password(options)
     if not native and runtime_password:
         native = _load_example_config("fileio-config.example.json")
     if not native:
         return [review_finding(
             "fileio", "File Upload/Download", url, method, parameters,
-            "ROOKIESCAN_FILEIO_CONFIG가 없어 계정 기반 파일 검사를 수행하지 않았습니다.",
+            "실습 계정 공통 비밀번호 또는 ROOKIESCAN_FILEIO_CONFIG가 없어 "
+            "계정 기반 파일 검사를 수행하지 않았습니다.",
         )]
     if runtime_password:
         native = _inject_runtime_password(native, runtime_password)
@@ -247,6 +327,11 @@ def scan_authn(url: str, method: str, parameters: Any, session_cookie: Any = "",
     options = options or {}
     timeout = float(options.get("timeout", 5))
     config = _load_config(options, "authn_config", "ROOKIESCAN_AUTHN_CONFIG")
+    runtime_password = _runtime_password(options)
+    if not config and runtime_password:
+        config = _inject_runtime_password(
+            _load_example_config("authn-config.example.json"), runtime_password,
+        )
     if config:
         return _configured_auth_scan(
             run_authn_config, "authn", "Insufficient Authentication", config,
@@ -255,7 +340,8 @@ def scan_authn(url: str, method: str, parameters: Any, session_cookie: Any = "",
     if not cookie_dict(session_cookie):
         return [review_finding(
             "authn", "Insufficient Authentication", url, method, parameters,
-            "인증 요청과 비교할 세션 쿠키 또는 ROOKIESCAN_AUTHN_CONFIG가 없습니다.",
+            "인증 요청과 비교할 세션 쿠키, 실습 계정 공통 비밀번호 또는 "
+            "ROOKIESCAN_AUTHN_CONFIG가 없습니다.",
         )]
     if method.upper() not in {"GET", "HEAD"}:
         return [review_finding(
@@ -274,12 +360,21 @@ def scan_authn(url: str, method: str, parameters: Any, session_cookie: Any = "",
         anonymous.close()
 
     location = anon_response.headers.get("Location", "").lower()
+    anonymous_body = anon_response.text.lower()
+    admin_markers = (
+        "관리자 대시보드", 'data-active="admin"', "lab-admin-section",
+    )
     if anon_response.status_code in {401, 403} or (
         anon_response.status_code in {301, 302, 303, 307, 308}
         and any(marker in location for marker in ("login", "signin"))
     ):
         vuln = "PASS"
         reason = f"비로그인 요청이 HTTP {anon_response.status_code}로 차단되었습니다."
+    elif anon_response.status_code == 200 and any(
+        marker.lower() in anonymous_body for marker in admin_markers
+    ):
+        vuln = "VULNERABLE"
+        reason = "비로그인 응답에서 관리자 페이지 보호 내용을 확인했습니다."
     elif auth_response.status_code == anon_response.status_code == 200:
         similarity = SequenceMatcher(None, auth_response.text, anon_response.text).ratio()
         if len(auth_response.content) >= 80 and similarity >= 0.95:
@@ -309,7 +404,7 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
     options = options or {}
     config = _load_config(options, "authz_config", "ROOKIESCAN_AUTHZ_CONFIG")
     if config:
-        runtime_password = str(options.get("lab_password") or "")
+        runtime_password = _runtime_password(options)
         if runtime_password:
             config = _inject_runtime_password(config, runtime_password)
         return _configured_auth_scan(
@@ -317,13 +412,20 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
             url, method, parameters, float(options.get("timeout", 5)),
         )
 
+    timeout = float(options.get("timeout", 5))
     attacker_cookie = options.get("authz_attacker_cookie", "")
     owner_cookies = cookie_dict(session_cookie)
     attacker_cookies = cookie_dict(attacker_cookie)
+    runtime_password = _runtime_password(options)
+    if runtime_password and not attacker_cookies:
+        owner_cookies, attacker_cookies = _runtime_authz_cookies(
+            options, url, runtime_password, timeout,
+        )
     if not owner_cookies or not attacker_cookies:
         return [review_finding(
             "authz", "IDOR/BOLA", url, method, parameters,
-            "교차 계정 검사를 위한 다른 사용자 세션 쿠키 또는 ROOKIESCAN_AUTHZ_CONFIG가 없습니다.",
+            "교차 계정 검사를 위한 다른 사용자 세션 쿠키, 실습 계정 공통 비밀번호 또는 "
+            "ROOKIESCAN_AUTHZ_CONFIG가 없습니다.",
         )]
     if method.upper() not in {"GET", "HEAD"}:
         return [review_finding(
@@ -331,7 +433,6 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
             "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
         )]
 
-    timeout = float(options.get("timeout", 5))
     owner = requests.Session()
     attacker = requests.Session()
     anonymous = requests.Session()
@@ -348,6 +449,16 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
 
     owner_blocked = _blocked_response(owner_response)
     attacker_blocked = _blocked_response(attacker_response)
+    anonymous_blocked = _blocked_response(anonymous_response)
+    parts = urlsplit(url)
+    query = parse_qs(parts.query)
+    sensitive_object = (
+        parts.path.startswith(("/api/profiles/", "/mypage/"))
+        or (
+            parts.path.startswith("/customer/contact/")
+            and query.get("secret", [""])[0].lower() in {"1", "true", "yes"}
+        )
+    )
     if owner_blocked or not 200 <= owner_response.status_code < 300:
         vuln = "REVIEW"
         severity = "INFO"
@@ -365,12 +476,32 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
         similarity = SequenceMatcher(
             None, owner_response.text, attacker_response.text
         ).ratio()
-        if len(owner_response.content) >= 80 and similarity >= 0.90:
+        anonymous_similarity = (
+            SequenceMatcher(None, owner_response.text, anonymous_response.text).ratio()
+            if 200 <= anonymous_response.status_code < 300 else 0.0
+        )
+        if (
+            not anonymous_blocked
+            and 200 <= anonymous_response.status_code < 300
+            and len(owner_response.content) >= 80
+            and anonymous_similarity >= 0.90
+        ):
+            vuln = "PASS"
+            severity = "NONE"
+            reason = "비로그인 사용자에게도 동일하게 공개된 자원이라 IDOR로 판정하지 않았습니다."
+        elif len(owner_response.content) >= 80 and similarity >= 0.90 and sensitive_object:
             vuln = "VULNERABLE"
             severity = "HIGH"
             reason = (
                 f"다른 사용자 요청이 성공했고 소유자 응답과 {similarity:.1%} 유사하여 "
                 "IDOR/BOLA가 확인되었습니다."
+            )
+        elif len(owner_response.content) >= 80 and similarity >= 0.90:
+            vuln = "REVIEW"
+            severity = "MEDIUM"
+            reason = (
+                "다른 사용자도 동일한 내용을 조회했지만 이 엔드포인트가 소유자 전용인지 "
+                "확인되지 않아 수동 검토가 필요합니다."
             )
         else:
             vuln = "REVIEW"
@@ -395,7 +526,8 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
             "owner": _response_fingerprint(owner_response),
             "attacker": _response_fingerprint(attacker_response),
             "anonymous": _response_fingerprint(anonymous_response),
-            "anonymous_blocked": _blocked_response(anonymous_response),
+            "anonymous_blocked": anonymous_blocked,
+            "sensitive_object_hint": sensitive_object,
         },
     }
     return _normalize_many([raw], "authz", "IDOR/BOLA", url, method, parameters)
