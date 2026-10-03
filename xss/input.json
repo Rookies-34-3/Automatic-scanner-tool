@@ -1,8 +1,0 @@
-{
-  "url": "http://13.125.233.51/my-class/board/qna",
-  "method": "GET",
-  "parameters": {
-    "content": "hello"
-  },
-  "session_cookie": ""
-}
