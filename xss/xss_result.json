@@ -1,5 +1,5 @@
 {
-  "url": "http://127.0.0.1:8080/my-class/board/qna",
+  "url": "http://13.125.233.51/my-class/board/qna",
   "method": "GET",
   "parameters": {
     "content": "hello"
