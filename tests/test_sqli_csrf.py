@@ -6,19 +6,29 @@ from module.sqli.scanner import Scanner
 
 
 class SqliCsrfTest(unittest.TestCase):
-    def test_post_reads_form_and_sends_current_csrf_token(self):
+    def test_post_keeps_companion_fields_and_replaces_only_target(self):
         scanner = Scanner({"base_url": "https://lab.example", "delay": 0})
         calls = []
+        post_count = 0
 
         def request(method, path, **kwargs):
+            nonlocal post_count
             calls.append((method, path, kwargs))
             if method == "GET":
                 return SimpleNamespace(
                     status_code=200,
-                    text=('''<form method="post"><input type="hidden" name="csrf_token" '''
-                          '''value="fresh-token"><input name="title"></form>'''),
+                    text=('''<form method="post">'''
+                          '''<input type="hidden" name="csrf_token" value="fresh-token">'''
+                          '''<select name="category" required><option value="">선택</option>'''
+                          '''<option value="기타">기타</option></select>'''
+                          '''<input name="title" required><textarea name="body" required></textarea>'''
+                          '''<button name="action" value="preview">미리보기</button></form>'''),
                 )
-            return SimpleNamespace(status_code=400, text="잘못된 요청")
+            post_count += 1
+            return SimpleNamespace(
+                status_code=200 if post_count == 1 else 400,
+                text="<tbody><tr><td>정상 결과</td></tr></tbody>" if post_count == 1 else "잘못된 요청",
+            )
 
         with patch.object(scanner, "request", side_effect=request):
             scanner.scan({
@@ -27,8 +37,15 @@ class SqliCsrfTest(unittest.TestCase):
                 "parameter": "title",
             }, "SCAN-test")
 
-        self.assertEqual([call[0] for call in calls], ["GET", "POST"])
-        self.assertEqual(calls[1][2]["data"], {"csrf_token": "fresh-token", "title": ""})
+        self.assertEqual([call[0] for call in calls], ["GET", "POST", "GET", "POST"])
+        self.assertEqual(calls[1][2]["data"], {
+            "csrf_token": "fresh-token", "category": "기타", "title": "ROOKIESCAN",
+            "body": "ROOKIESCAN", "action": "preview",
+        })
+        self.assertEqual(calls[3][2]["data"], {
+            "csrf_token": "fresh-token", "category": "기타", "title": "'",
+            "body": "ROOKIESCAN", "action": "preview",
+        })
 
     def test_csrf_control_is_not_scanned(self):
         scanner = Scanner({"base_url": "https://lab.example", "delay": 0})
