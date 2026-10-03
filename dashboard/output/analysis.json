@@ -1,0 +1,401 @@
+{
+  "source_hash": "5e5f37fb5c71788a9bf5d7c2d6d0d71ebe98f3cdab54879d5896757e5a6b426a",
+  "source_file": "sample_scan_result2.json",
+  "model": "gpt-6.1-sol",
+  "generated_at": "2026-10-03T17:47:13.202106+00:00",
+  "statistics": {
+    "total_tasks": 53,
+    "unique_endpoints": 28,
+    "total_findings": 70,
+    "verdict_counts": {
+      "pass": 13,
+      "review": 47,
+      "vulnerable": 10
+    },
+    "scanner_candidate_counts": {
+      "portscan": 1,
+      "sqli": 29,
+      "xss": 13,
+      "authz": 15,
+      "directory_indexing": 2,
+      "fileio": 7,
+      "admin_exposure": 1,
+      "authn": 1,
+      "ssrf": 1
+    },
+    "vulnerable_type_counts": {
+      "sqli": 2,
+      "xss": 1,
+      "authz": 2,
+      "directory_indexing": 2,
+      "admin_exposure": 1,
+      "ssrf": 1,
+      "fileio": 1
+    },
+    "severity_counts": {
+      "HIGH": 9,
+      "MEDIUM": 1
+    },
+    "verified_vulnerable_count": 10
+  },
+  "analysis_validation": {
+    "verified_findings_sent": 10,
+    "scenario_candidates": 9,
+    "accepted_attack_scenarios": 3,
+    "rejected_attack_scenarios": 0
+  },
+  "analysis": {
+    "overall_risk": "HIGH",
+    "overall_assessment": "입력된 전체 위험도(overall_risk)는 HIGH이며, 검증된 취약점은 10건으로 HIGH 9건과 MEDIUM 1건입니다. 주요 문제는 SQL Injection, 객체 수준 권한 검증 미흡(IDOR/BOLA), 서버 측 요청 위조(SSRF), 파일 업로드 검증 미흡이며, 디렉터리 목록과 관리자 페이지 노출 및 반사형 XSS(Reflected XSS)도 확인되었습니다. 특히 다른 사용자 정보에 대한 접근과 사용자 입력에 따른 SQL 오류 및 응답 차이는 우선 개선해야 할 문제입니다. 객체별 접근 권한 검증, 매개변수화된 SQL 처리, 서버 측 요청 대상 제한 및 업로드 검증을 우선 적용해야 합니다. 개별 취약점은 검증되었지만 취약점 간 공격 체인, 관리자 권한 획득 및 추가 데이터 탈취 여부는 확인되지 않았으므로 추가 검증 필요입니다.",
+    "key_findings": [
+      {
+        "finding_id": "F001",
+        "scanner_id": "sqli",
+        "name": "SQL Injection",
+        "vulnerability_type": "sqli",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/qna?content=&page=1",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "content",
+            "location": "query"
+          }
+        ],
+        "evidence": "content 입력값 변경에 따라 데이터베이스 오류 패턴과 응답 차이가 반복적으로 확인되었습니다.",
+        "summary": "GET http://13.125.233.51/my-class/board/qna?content=&page=1의 content 입력값에 따라 데이터베이스 오류 패턴과 응답 차이가 반복적으로 확인되어 SQL Injection이 검증되었습니다.",
+        "impact": "SQL 쿼리 처리에 영향을 주어 허용되지 않은 데이터 조회나 변경으로 이어질 가능성이 있으나, 실제 데이터 접근 범위는 확인되지 않았습니다.",
+        "recommendation": "content 값을 SQL 문자열에 직접 결합하지 말고 매개변수화된 쿼리(Parameterized Query)를 사용하며, 데이터베이스 계정에 최소 권한을 적용하십시오.",
+        "validation_note": "데이터 조회·변경 가능 범위와 데이터베이스 계정 권한은 추가 검증 필요."
+      },
+      {
+        "finding_id": "F002",
+        "scanner_id": "xss",
+        "name": "Reflected XSS",
+        "vulnerability_type": "xss",
+        "severity": "MEDIUM",
+        "url": "http://13.125.233.51/customer/contact",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "category",
+            "location": "query"
+          },
+          {
+            "name": "content",
+            "location": "query"
+          }
+        ],
+        "evidence": "content 입력값이 HTML 응답에 인코딩되지 않은 형태로 반사되는 것이 확인되었습니다.",
+        "summary": "GET http://13.125.233.51/customer/contact에서 content 입력값이 HTML 응답에 인코딩 없이 반사되는 Reflected XSS가 확인되었습니다.",
+        "impact": "사용자가 영향을 받는 응답을 열람할 경우 브라우저에서 의도하지 않은 스크립트가 실행될 가능성이 있으나, 실제 사용자 피해는 확인되지 않았습니다.",
+        "recommendation": "content 출력 위치에 맞는 문맥별 출력 인코딩(Contextual Output Encoding)을 적용하고, 콘텐츠 보안 정책(Content Security Policy)을 보조 방어로 적용하십시오.",
+        "validation_note": "실제 브라우저 실행 조건과 사용자에게 미치는 영향은 추가 검증 필요."
+      },
+      {
+        "finding_id": "F003",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/mypage/my-information/2",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "email",
+            "location": "query"
+          },
+          {
+            "name": "path_id_1",
+            "location": "path"
+          },
+          {
+            "name": "phone",
+            "location": "query"
+          }
+        ],
+        "evidence": "다른 사용자 식별자로 요청했을 때 권한 검증 없이 사용자 정보가 반환되는 동작이 확인되었습니다.",
+        "summary": "GET http://13.125.233.51/mypage/my-information/2에서 다른 사용자 식별자로 요청할 때 권한 검증 없이 사용자 정보가 반환되는 IDOR/BOLA가 확인되었습니다.",
+        "impact": "확인된 사용자 정보 반환 동작으로 인해 다른 사용자의 정보가 노출될 수 있으며, 노출 항목과 전체 영향 범위는 확인되지 않았습니다.",
+        "recommendation": "요청 대상 사용자와 인증된 사용자 간 소유권 및 접근 권한을 서버에서 검증하고, 권한이 없는 요청은 거부하십시오.",
+        "validation_note": "반환되는 정보의 민감도와 영향을 받는 사용자 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F004",
+        "scanner_id": "directory_indexing",
+        "name": "Directory Indexing",
+        "vulnerability_type": "directory_indexing",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/",
+        "method": "GET",
+        "parameters": [],
+        "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+        "summary": "GET http://13.125.233.51/uploads/의 HTTP 200 응답에서 'Index of'가 확인되어 디렉터리 인덱싱(Directory Indexing) 노출이 검증되었습니다.",
+        "impact": "디렉터리 목록을 통해 파일명과 구조가 노출될 수 있으나, 개별 파일의 열람 가능 여부와 민감정보 포함 여부는 확인되지 않았습니다.",
+        "recommendation": "디렉터리 인덱싱을 비활성화하고, 공개가 필요하지 않은 파일에는 접근 제한을 적용하십시오.",
+        "validation_note": "목록에 포함된 파일의 접근 가능 여부와 민감도는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F005",
+        "scanner_id": "admin_exposure",
+        "name": "Administrator Page Exposure",
+        "vulnerability_type": "admin_exposure",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/admin",
+        "method": "GET",
+        "parameters": [],
+        "evidence": "비로그인 상태에서 HTTP 200 응답이 반환되었으며, 관리자 페이지 식별 지표 4개가 확인되었습니다: data-active=\"admin\", 관리자 페이지, 관리자 대시보드, lab-admin-section",
+        "summary": "GET http://13.125.233.51/admin에서 비로그인 상태로 HTTP 200 응답과 관리자 페이지 식별 지표 4개가 확인되었습니다.",
+        "impact": "관리자 페이지의 존재와 화면 관련 정보가 비로그인 사용자에게 노출될 수 있으나, 관리자 기능 실행이나 권한 획득은 확인되지 않았습니다.",
+        "recommendation": "관리자 페이지와 관련 기능에 서버 측 인증(Authentication) 및 권한 검증(Authorization)을 적용하고, 필요한 경우 접근 가능한 네트워크를 제한하십시오.",
+        "validation_note": "관리자 화면에서 노출되는 정보와 각 기능의 인증·권한 검증 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F006",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/api/profiles/2",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 프로필 식별자에 대한 GET 요청이 별도의 소유권 검증 없이 성공했습니다.",
+        "summary": "GET http://13.125.233.51/api/profiles/2에서 다른 사용자 프로필 식별자에 대한 요청이 소유권 검증 없이 성공하는 IDOR/BOLA가 확인되었습니다.",
+        "impact": "다른 사용자의 프로필에 허용되지 않은 접근이 가능할 수 있으며, 반환 정보의 세부 항목과 노출 범위는 확인되지 않았습니다.",
+        "recommendation": "프로필 조회 시 인증된 사용자의 객체 접근 권한을 서버에서 검증하고, 식별자만으로 접근을 허용하지 않도록 수정하십시오.",
+        "validation_note": "반환되는 프로필 정보와 역할별 허용 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F007",
+        "scanner_id": "directory_indexing",
+        "name": "Directory Indexing",
+        "vulnerability_type": "directory_indexing",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/knowledge/",
+        "method": "GET",
+        "parameters": [],
+        "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+        "summary": "GET http://13.125.233.51/uploads/knowledge/의 HTTP 200 응답에서 'Index of'가 확인되어 디렉터리 인덱싱 노출이 검증되었습니다.",
+        "impact": "디렉터리 내 파일명과 구조가 노출될 수 있으나, 파일 내용 접근이나 민감자료 노출 여부는 확인되지 않았습니다.",
+        "recommendation": "해당 디렉터리의 목록 출력을 비활성화하고, 파일별 공개 필요성과 접근 권한을 검토하십시오.",
+        "validation_note": "개별 파일의 접근 가능 여부와 민감자료 포함 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F008",
+        "scanner_id": "ssrf",
+        "name": "Server-Side Request Forgery",
+        "vulnerability_type": "ssrf",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/pre-course/write",
+        "method": "POST",
+        "parameters": [
+          {
+            "name": "csrf_token",
+            "location": "form"
+          },
+          {
+            "name": "action",
+            "location": "form"
+          },
+          {
+            "name": "title",
+            "location": "form"
+          },
+          {
+            "name": "url",
+            "location": "form"
+          }
+        ],
+        "evidence": "url 파라미터로 지정한 검증 주소에 대해 서버 측 요청이 발생한 것이 확인되었습니다.",
+        "summary": "POST http://13.125.233.51/pre-course/write의 url 파라미터로 지정한 검증 주소에 서버 측 요청이 발생하여 SSRF가 확인되었습니다.",
+        "impact": "사용자 입력에 의해 서버의 요청 대상이 결정될 수 있으며, 요청 가능 범위에 따라 의도하지 않은 자원 접근으로 이어질 가능성이 있습니다.",
+        "recommendation": "요청 대상에 허용 목록(Allowlist)을 적용하고, 허용된 프로토콜과 목적지만 사용하도록 제한하며 서버의 외부 통신 정책을 강화하십시오.",
+        "validation_note": "접근 가능한 목적지 범위, 내부 자원 접근 가능 여부 및 응답 정보 노출 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F009",
+        "scanner_id": "fileio",
+        "name": "File Upload/Download",
+        "vulnerability_type": "fileio",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/customer/contact/write",
+        "method": "POST",
+        "parameters": [
+          {
+            "name": "file",
+            "location": "form"
+          },
+          {
+            "name": "is_secret",
+            "location": "form"
+          },
+          {
+            "name": "csrf_token",
+            "location": "form"
+          },
+          {
+            "name": "category",
+            "location": "form"
+          },
+          {
+            "name": "title",
+            "location": "form"
+          },
+          {
+            "name": "body",
+            "location": "form"
+          }
+        ],
+        "evidence": "업로드 파일의 확장자와 콘텐츠 유형 검증이 충분하지 않은 상태에서 파일 저장이 허용되는 동작이 확인되었습니다.",
+        "summary": "POST http://13.125.233.51/customer/contact/write에서 업로드 파일의 확장자와 콘텐츠 유형 검증이 충분하지 않은 상태로 파일 저장이 허용되는 동작이 확인되었습니다.",
+        "impact": "허용되지 않은 유형의 파일이 저장될 수 있으나, 저장 파일의 공개 접근이나 서버 측 실행 가능 여부는 확인되지 않았습니다.",
+        "recommendation": "허용된 파일 유형만 수용하도록 확장자, 콘텐츠 유형 및 파일 내용을 함께 검증하고, 업로드 저장 영역을 실행 불가능한 위치로 분리하십시오.",
+        "validation_note": "저장 위치, 접근 권한, 실행 가능 여부 및 후속 파일 처리 방식은 추가 검증 필요."
+      },
+      {
+        "finding_id": "F010",
+        "scanner_id": "sqli",
+        "name": "SQL Injection",
+        "vulnerability_type": "sqli",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/customer/contact/write",
+        "method": "POST",
+        "parameters": [
+          {
+            "name": "title",
+            "location": "form"
+          }
+        ],
+        "evidence": "title 파라미터 입력에 따라 SQL 오류 패턴과 비정상적인 응답 차이가 반복적으로 확인되었습니다.",
+        "summary": "POST http://13.125.233.51/customer/contact/write의 title 입력에 따라 SQL 오류 패턴과 비정상적인 응답 차이가 반복적으로 확인되어 SQL Injection이 검증되었습니다.",
+        "impact": "SQL 처리 흐름이 사용자 입력의 영향을 받아 허용되지 않은 데이터 조회나 변경으로 이어질 가능성이 있으나, 실제 영향 범위는 확인되지 않았습니다.",
+        "recommendation": "title을 처리하는 SQL에 매개변수화된 쿼리를 적용하고, 데이터베이스 계정의 권한을 필요한 범위로 제한하십시오.",
+        "validation_note": "영향을 받는 SQL 처리 범위와 데이터 조회·변경 가능 여부는 추가 검증 필요."
+      }
+    ],
+    "attack_scenarios": [
+      {
+        "candidate_ref": "C003",
+        "title": "소유권 검증 누락에 따른 다른 사용자 프로필 접근",
+        "scenario_status": "possible",
+        "confidence": "high",
+        "evidence_refs": [
+          "F006"
+        ],
+        "related_vulnerability_types": [
+          "authz"
+        ],
+        "related_endpoints": [
+          "http://13.125.233.51/api/profiles/2"
+        ],
+        "scenario": "프로필 조회 요청에서 대상 객체에 대한 소유권 검증이 적용되지 않아, 요청자가 접근 권한을 갖지 않은 다른 사용자 프로필에 접근하는 흐름이 가능합니다. 다른 사용자 식별자에 대한 GET 요청 성공은 확인되었지만 전체 영향 범위는 확인되지 않았습니다.",
+        "potential_impact": "프로필에 비공개 정보가 포함되어 있다면 해당 정보가 권한 없는 사용자에게 노출될 수 있습니다.",
+        "required_conditions": "반환 정보의 항목과 민감도, 요청자의 역할별 접근 정책 및 영향을 받는 사용자 범위는 추가 검증 필요."
+      },
+      {
+        "candidate_ref": "C006",
+        "title": "객체 수준 권한 검증 누락에 따른 사용자 정보 노출",
+        "scenario_status": "possible",
+        "confidence": "high",
+        "evidence_refs": [
+          "F003"
+        ],
+        "related_vulnerability_types": [
+          "authz"
+        ],
+        "related_endpoints": [
+          "http://13.125.233.51/mypage/my-information/2"
+        ],
+        "scenario": "사용자 정보 조회에서 요청 대상과 요청자의 권한 관계가 검증되지 않아 다른 사용자의 정보가 반환되는 흐름이 가능합니다. 다른 사용자 식별자로 요청했을 때 정보가 반환되는 동작을 근거로 하며, 다른 기능과의 연계는 확인되지 않았습니다.",
+        "potential_impact": "반환되는 사용자 정보의 내용에 따라 개인정보의 비인가 노출이 발생할 수 있습니다.",
+        "required_conditions": "노출 정보의 민감도, 사용자 간 접근 정책 및 동일 동작이 적용되는 범위는 추가 검증 필요."
+      },
+      {
+        "candidate_ref": "C007",
+        "title": "사용자 지정 주소에 대한 서버 측 요청 유도",
+        "scenario_status": "possible",
+        "confidence": "medium",
+        "evidence_refs": [
+          "F008"
+        ],
+        "related_vulnerability_types": [
+          "ssrf"
+        ],
+        "related_endpoints": [
+          "http://13.125.233.51/pre-course/write"
+        ],
+        "scenario": "url 입력값으로 지정한 검증 주소에 서버 측 요청이 발생한 사실을 근거로, 사용자가 서버의 요청 목적지에 영향을 주는 흐름이 가능합니다. 내부 자원 접근이나 응답 데이터 획득은 확인되지 않았습니다.",
+        "potential_impact": "목적지 제한이 충분하지 않고 서버에서 해당 자원에 접근할 수 있다면 의도하지 않은 자원에 요청이 전달될 수 있습니다.",
+        "required_conditions": "목적지 제한 정책, 서버의 네트워크 접근 범위 및 요청 결과가 사용자에게 노출되는지는 추가 검증 필요."
+      }
+    ],
+    "priority_actions": [
+      {
+        "priority": 1,
+        "title": "사용자 정보와 프로필의 객체별 권한 검증 적용",
+        "reason": "다른 사용자 정보 반환 및 소유권 검증 없는 프로필 요청 성공이 직접 확인되어 비인가 접근을 우선 차단해야 합니다.",
+        "related_finding_ids": [
+          "F003",
+          "F006"
+        ]
+      },
+      {
+        "priority": 2,
+        "title": "SQL 입력 처리의 매개변수화",
+        "reason": "두 입력 지점에서 SQL 오류 패턴과 응답 차이가 반복 확인되었으므로 입력값이 SQL 구조에 영향을 주지 않도록 수정해야 합니다.",
+        "related_finding_ids": [
+          "F001",
+          "F010"
+        ]
+      },
+      {
+        "priority": 3,
+        "title": "서버 측 요청 목적지 제한",
+        "reason": "사용자가 지정한 주소에 서버 측 요청이 발생하는 동작이 확인되어 요청 대상을 통제해야 합니다.",
+        "related_finding_ids": [
+          "F008"
+        ]
+      },
+      {
+        "priority": 4,
+        "title": "업로드 검증 강화와 디렉터리 목록 노출 차단",
+        "reason": "파일 저장 검증 미흡과 디렉터리 목록 노출이 각각 확인되었습니다. 두 문제의 연결 관계는 확인되지 않았으므로 독립적으로 조치해야 합니다.",
+        "related_finding_ids": [
+          "F009",
+          "F004",
+          "F007"
+        ]
+      },
+      {
+        "priority": 5,
+        "title": "관리자 접근 통제와 HTML 출력 인코딩 개선",
+        "reason": "비로그인 상태의 관리자 페이지 노출과 인코딩되지 않은 입력 반사가 각각 확인되어 관리 영역 접근 및 브라우저 출력 처리를 보완해야 합니다.",
+        "related_finding_ids": [
+          "F005",
+          "F002"
+        ]
+      }
+    ],
+    "vulnerability_analysis": {
+      "admin_exposure": "F005에서 비로그인 상태로 관리자 페이지 식별 지표가 확인되었습니다. 이는 관리자 페이지 노출의 근거이며 관리자 권한 획득을 의미하지 않습니다. 실제 기능 접근 통제와 정보 노출 범위는 추가 검증 필요입니다.",
+      "authz": "F003과 F006은 다른 사용자 객체에 대한 권한 또는 소유권 검증이 누락된 IDOR/BOLA입니다. 객체별 서버 측 권한 검증을 일관되게 적용해야 하며, 전체 노출 항목과 영향 범위는 추가 검증 필요입니다.",
+      "directory_indexing": "F004와 F007에서 HTTP 200 응답의 'Index of'를 통해 디렉터리 목록 노출이 확인되었습니다. 목록 노출을 차단하고 파일별 접근 정책을 점검해야 하며, 개별 파일의 내용 노출 여부는 추가 검증 필요입니다.",
+      "fileio": "F009에서 확장자와 콘텐츠 유형 검증이 충분하지 않은 상태로 업로드 파일 저장이 허용되었습니다. 파일 유형 검증과 비실행 저장 정책이 필요하며, 저장 파일의 공개 접근이나 실행 가능 여부는 추가 검증 필요입니다.",
+      "sqli": "F001과 F010에서 사용자 입력에 따른 SQL 오류 패턴 및 반복적인 응답 차이가 확인되었습니다. 공통 개선 방향은 매개변수화된 쿼리 사용과 데이터베이스 최소 권한 적용입니다. 실제 데이터 조회·변경 및 두 지점 간 연계 가능성은 추가 검증 필요입니다.",
+      "ssrf": "F008에서 url 파라미터로 지정한 검증 주소에 서버 측 요청이 발생했습니다. 목적지 허용 목록과 네트워크 통신 제한이 필요하며, 내부 자원 접근 및 응답 데이터 노출 여부는 추가 검증 필요입니다.",
+      "xss": "F002에서 content 입력값의 인코딩되지 않은 HTML 반사가 확인되었습니다. 출력 문맥에 맞는 인코딩을 적용해야 하며, 브라우저 실행 조건과 사용자 피해 범위는 추가 검증 필요입니다."
+    },
+    "general_recommendations": [
+      "인증 여부와 별개로 요청마다 대상 객체에 대한 서버 측 권한 검증을 적용하고, 다른 사용자 및 역할 간 접근을 점검하는 회귀 테스트를 마련하십시오.",
+      "SQL 매개변수화, 문맥별 출력 인코딩, 파일 유형 검증 및 서버 측 요청 목적지 제한을 공통 개발 기준으로 정립하십시오.",
+      "데이터베이스 계정, 업로드 저장 영역 및 서버 네트워크 통신에 최소 권한 원칙(Least Privilege)을 적용하십시오.",
+      "관리자 페이지 접근 통제와 디렉터리 인덱싱 설정을 점검하고 불필요한 공개 노출을 차단하십시오.",
+      "각 finding_id를 기준으로 수정 후 재검증을 수행하고, 개별 취약점 검증 결과와 공격 체인 검증 결과를 구분하여 관리하십시오."
+    ]
+  }
+}
