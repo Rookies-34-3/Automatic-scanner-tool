@@ -6,8 +6,26 @@
 """
 import argparse
 import json
+import os
 import sys
 from .engine import run_scan, write_json, print_summary
+
+
+def _resolve_secrets(cfg):
+    """비밀번호는 JSON 에 두지 않고 password_env(환경변수 이름)로만 둔다.
+    설정에 password_env 가 있으면 해당 환경변수에서 실제 비번을 읽어 채운다."""
+    # credentials 스타일: { role: {userId, password_env} }
+    for acct in (cfg.get("credentials") or {}).values():
+        if isinstance(acct, dict) and acct.get("password_env") and not acct.get("password"):
+            acct["password"] = os.environ.get(acct["password_env"], "")
+    # auth 스타일: { auth/attacker_auth/admin_auth: {password_env, fields:{userId}} }
+    for key in ("auth", "attacker_auth", "admin_auth"):
+        a = cfg.get(key)
+        if isinstance(a, dict) and a.get("password_env"):
+            fields = a.setdefault("fields", {})
+            if not fields.get("password"):
+                fields["password"] = os.environ.get(a["password_env"], "")
+    return cfg
 
 
 def main():
@@ -19,6 +37,7 @@ def main():
     # utf-8-sig: Windows 에서 저장 시 붙는 BOM 도 허용
     with open(args.config, encoding="utf-8-sig") as fp:
         cfg = json.load(fp)
+    cfg = _resolve_secrets(cfg)
 
     result = run_scan(cfg)
     print_summary(result)

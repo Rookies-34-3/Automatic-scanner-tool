@@ -57,7 +57,7 @@ python -m fileio_scanner.pipeline --config config.example.json --output results/
 
 ### 단독 테스트 (성공 확인됨)
 ```powershell
-$env:ROOKIESCAN_PASSWORD="Lab1234!"
+$env:ROOKIESCAN_PASSWORD="<실습 비밀번호>"
 python -m fileio_scanner.pipeline --config config.example.json --output results/findings.json --authorized --no-fail-on-findings
 ```
 - 대상(로컬 Docker `127.0.0.1:8080`)이 떠 있어야 함
@@ -93,9 +93,9 @@ CLI 옵션:
   "base_url": "http://127.0.0.1:8080",
   "login_path": "/login",
   "credentials": {
-    "victim":   { "userId": "student1", "password": "Lab1234!" },
-    "attacker": { "userId": "student2", "password": "Lab1234!" },
-    "admin":    { "userId": "admin",    "password": "Lab1234!" }
+    "victim":   { "userId": "student1", "password_env": "ROOKIESCAN_PASSWORD" },
+    "attacker": { "userId": "student2", "password_env": "ROOKIESCAN_PASSWORD" },
+    "admin":    { "userId": "admin",    "password_env": "ROOKIESCAN_PASSWORD" }
   },
   "upload_path": "/my-class/board/write/qna",
   "notice_path": "/my-class/board/write/notice"

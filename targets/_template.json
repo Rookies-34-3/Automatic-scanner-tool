@@ -23,9 +23,9 @@
   "_comment_login_path": "[필수] 로그인 폼이 POST 되는 경로. 로그인 페이지 <form action> 값.",
 
   "credentials": {
-    "victim":   { "userId": "student1", "password": "Lab1234!" },
-    "attacker": { "userId": "student2", "password": "Lab1234!" },
-    "admin":    { "userId": "admin",    "password": "Lab1234!" }
+    "victim":   { "userId": "student1", "password_env": "ROOKIESCAN_PASSWORD" },
+    "attacker": { "userId": "student2", "password_env": "ROOKIESCAN_PASSWORD" },
+    "admin":    { "userId": "admin",    "password_env": "ROOKIESCAN_PASSWORD" }
   },
   "_comment_credentials": "[필수] 계정. victim=파일주인, attacker=낮은권한(IDOR기준), admin=권한상승표적. 키 이름(userId 등)은 자동탐지된 필드명으로 매핑됨.",
 
@@ -42,10 +42,11 @@
     "type": "form",
     "login_path": "/login",
     "csrf_field": "csrf_token",
-    "fields": { "userId": "student1", "password": "Lab1234!" },
+    "password_env": "ROOKIESCAN_PASSWORD",
+    "fields": { "userId": "student1" },
     "success_check_path": "/my-class/board/write/qna"
   },
-  "_comment_auth": "로그인이 JS/API 기반이라 자동탐지 실패 시. '_auth_example' → 'auth' 로 키 이름 바꿔 사용. csrf 없으면 csrf_field:null. 비인증 대상이면 type:'none'. attacker_auth/admin_auth 도 동일 구조로 추가.",
+  "_comment_auth": "로그인이 JS/API 기반이라 자동탐지 실패 시. '_auth_example' → 'auth' 로 키 이름 바꿔 사용. 비밀번호는 JSON에 적지 말고 password_env(환경변수 이름)로. csrf 없으면 csrf_field:null. 비인증 대상이면 type:'none'. attacker_auth/admin_auth 도 동일 구조로 추가.",
 
   "_upload_example": {
     "path": "/api/upload",

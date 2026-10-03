@@ -4,9 +4,9 @@
 
   "login_path": "/login",
   "credentials": {
-    "victim":   { "userId": "student1", "password": "Lab1234!" },
-    "attacker": { "userId": "student2", "password": "Lab1234!" },
-    "admin":    { "userId": "admin",    "password": "Lab1234!" }
+    "victim":   { "userId": "student1", "password_env": "ROOKIESCAN_PASSWORD" },
+    "attacker": { "userId": "student2", "password_env": "ROOKIESCAN_PASSWORD" },
+    "admin":    { "userId": "admin",    "password_env": "ROOKIESCAN_PASSWORD" }
   },
 
   "upload_path": "/my-class/board/write/qna",
