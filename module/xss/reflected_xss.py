@@ -3,8 +3,10 @@ import copy
 import html
 import json
 import uuid
+from urllib.parse import urljoin, urlsplit
 
 import requests
+from bs4 import BeautifulSoup
 
 
 class ReflectedXSSScanner:
@@ -152,6 +154,7 @@ class ReflectedXSSScanner:
             )
 
         if method == "POST":
+            parameters = self._form_request_data(target, parameter, value, headers)
             return self.session.post(
                 target["url"],
                 data=parameters,
@@ -161,6 +164,65 @@ class ReflectedXSSScanner:
             )
 
         raise ValueError(f"Unsupported method: {method}")
+
+    def _form_request_data(self, target, parameter, value, headers):
+        """폼의 CSRF·숨은 값·필수 동반 필드를 보존하고 검사 필드만 교체한다."""
+        page = self.session.get(
+            target["url"], headers=headers, timeout=self.timeout, allow_redirects=True,
+        )
+        target_parts = urlsplit(target["url"])
+        forms = []
+        for form in BeautifulSoup(page.text, "html.parser").select("form"):
+            if form.get("method", "GET").upper() != "POST":
+                continue
+            action = urlsplit(urljoin(target["url"], form.get("action") or target["url"]))
+            if (action.scheme, action.netloc, action.path) == (
+                target_parts.scheme, target_parts.netloc, target_parts.path,
+            ):
+                forms.append(form)
+        form = next((item for item in forms if any(
+            field.get("name") == parameter for field in item.select("[name]")
+        )), forms[0] if len(forms) == 1 else None)
+        if form is None:
+            parameters = copy.deepcopy(target["parameters"])
+            parameters[parameter] = value
+            return parameters
+
+        fields = {}
+        safe_values = {
+            "email": "rookiescan@example.com", "tel": "010-0000-0000",
+            "url": "https://example.com/", "number": "1",
+        }
+        for field in form.select("[name]"):
+            if field.has_attr("disabled"):
+                continue
+            name = field["name"]
+            kind = (field.get("type") or (
+                "submit" if field.name == "button" else field.name
+            )).lower()
+            if kind in {"file", "reset", "button", "image"}:
+                continue
+            if kind in {"checkbox", "radio"}:
+                if field.has_attr("checked"):
+                    fields[name] = field.get("value", "on")
+                continue
+            if kind == "submit":
+                if field.get("value"):
+                    fields.setdefault(name, field["value"])
+                continue
+            if field.name == "select":
+                choices = field.select("option:not([disabled])")
+                selected = next((item for item in choices if item.has_attr("selected")), None)
+                if selected is None and field.has_attr("required"):
+                    selected = next((item for item in choices if item.get("value", item.text)), None)
+                fields[name] = selected.get("value", selected.text) if selected else ""
+                continue
+            current = field.get_text() if field.name == "textarea" else field.get("value", "")
+            if field.has_attr("required") and not current:
+                current = safe_values.get(kind, "ROOKIESCAN")
+            fields[name] = current
+        fields[parameter] = value
+        return fields
 
     @staticmethod
     def _detect_context(response, marker):

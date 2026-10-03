@@ -88,6 +88,7 @@ def build_scan_report(target_url: str, analysis: dict) -> dict:
               for status in ("VULNERABLE", "PASS", "REVIEW", "ERROR")}
     endpoint_count = len({(item["url"], item["method"]) for item in findings})
     return {
+        "pipeline_version": analysis.get("pipeline_version"),
         "schema_version": "1.0.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "target": target_url,

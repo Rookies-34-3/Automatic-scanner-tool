@@ -31,6 +31,7 @@ def scan(app=None):
     app = app or AppTest.from_file(str(APP)).run()
     app.text_input[0].set_value("http://127.0.0.1:8080/")
     app.text_input[1].set_value("test-cookie")
+    app.text_input[3].set_value("test-password")
     return app.button[0].click().run()
 
 
@@ -38,6 +39,7 @@ def analysis_report(payload, session_cookie="", scanner_options=None, on_progres
     if on_progress:
         on_progress("스캐너 처리 완료")
     return {
+        "pipeline_version": openai_module.SCAN_PIPELINE_VERSION,
         "model": "gpt-6.1-sol", "group_count": len(payload["groups"]),
         "tool_call_count": 1,
         "summary_scope": "all_results",
@@ -102,6 +104,21 @@ class StreamlitFlowTest(unittest.TestCase):
         self.assertIn("https://rookiescan.example/search", requested)
         self.assertTrue(all(urlsplit(url).hostname == "rookiescan.example" for url in requested))
 
+    def test_patch_text_field_is_not_assigned_to_unsupported_sqli_or_xss(self):
+        endpoint = {
+            "url": "https://rookiescan.example/api/profile/1",
+            "method": "PATCH",
+            "parameters": [{"name": "display_name", "location": "json", "input_type": "text"}],
+        }
+        sink_finder._classify(endpoint)
+        tools = {
+            tool
+            for candidate in endpoint["sink_candidates"]
+            for tool in candidate.get("tools", [])
+        }
+        self.assertNotIn("sqli", tools)
+        self.assertNotIn("xss", tools)
+
     def test_reloads_stale_finder_and_runs_real_collection(self):
         pages = {
             "/": '<form action="/search"><input name="content" type="search"></form>'
@@ -135,7 +152,7 @@ class StreamlitFlowTest(unittest.TestCase):
                     analyze.assert_called_once()
                     self.assertEqual(analyze.call_args.kwargs["scanner_options"], {
                         "authz_attacker_cookie": "",
-                        "lab_password": "",
+                        "lab_password": "test-password",
                         "ssrf_verifier_payload_url": "",
                         "ssrf_verifier_status_url": "",
                     })

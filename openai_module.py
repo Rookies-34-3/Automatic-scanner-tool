@@ -22,6 +22,7 @@ from module.tool_registry import (
 
 MAX_CALLS_PER_SELECTION = 20
 MAX_TOTAL_TOOL_CALLS = 100
+SCAN_PIPELINE_VERSION = "2.2.0"
 
 
 def get_openai_client() -> OpenAI:
@@ -339,6 +340,7 @@ def analyze_sinks(
         }, client, messages)
 
     return {
+        "pipeline_version": SCAN_PIPELINE_VERSION,
         "model": response.model,
         "group_count": len(groups),
         "selection_batch_count": len(batches),

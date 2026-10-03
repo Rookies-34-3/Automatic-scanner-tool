@@ -6,12 +6,25 @@ ROOKIESCAN 도구 실행 및 보고서 출력하는 streamlit 기반 웹
 from importlib import reload
 from pathlib import Path
 import json
+import os
 
 import streamlit as st
+from dotenv import load_dotenv
 from openai import OpenAIError
 import sink_finder
 import openai_module
 import report_writer
+
+load_dotenv(Path(__file__).resolve().with_name(".env"), override=False)
+PIPELINE_VERSION = getattr(openai_module, "SCAN_PIPELINE_VERSION", "unknown")
+
+
+def _account_scans_ready() -> bool:
+    return bool(
+        st.session_state.get("lab_password", "").strip()
+        or os.getenv("ROOKIESCAN_PASSWORD", "").strip()
+        or os.getenv("SSLC_LAB_PASSWORD", "").strip()
+    )
 
 # 실행 중 pull한 경우에도 보고서 작성 함수가 있는 버전을 사용한다.
 if not hasattr(report_writer, "build_scan_report"):
@@ -24,8 +37,12 @@ st.markdown("<style>.stMainBlockContainer {padding-top: 3rem;}</style>", unsafe_
 st.title("ROOKIESCAN")
 
 # 실행 중 결과 스키마가 바뀌었으면 오래된 세션 결과를 재사용하지 않는다.
-if "analysis_result" in st.session_state and "tool_results" not in st.session_state["analysis_result"]:
-    st.session_state.pop("analysis_result")
+if "analysis_result" in st.session_state:
+    previous = st.session_state["analysis_result"]
+    if ("tool_results" not in previous
+            or previous.get("pipeline_version") != PIPELINE_VERSION):
+        st.session_state.pop("analysis_result")
+        st.session_state["show_analysis"] = False
 
 # show_report와 show_analysis 값으로 입력·Sink 보고서·AI 보고서 화면을 전환
 if not st.session_state.get("show_report", False):
@@ -40,7 +57,7 @@ if not st.session_state.get("show_report", False):
     with panel.container():
         target_url = st.text_input("대상 URL", value=saved_inputs[0])
         session_cookie = st.text_input("세션 쿠키", value=saved_inputs[1], type="password")
-        with st.expander("전체 스캔 설정 (교차 계정·파일 검사)"):
+        with st.expander("전체 스캔 필수 설정 (인증·인가·파일 검사)", expanded=True):
             authz_attacker_cookie = st.text_input(
                 "다른 사용자 세션 쿠키",
                 value=st.session_state.get("authz_attacker_cookie", ""),
@@ -54,6 +71,10 @@ if not st.session_state.get("show_report", False):
                 help=("인증·인가 및 파일 업로드·다운로드 검사에 메모리에서만 사용하며 저장하지 않습니다. "
                       "전체 계정 기반 판정을 원하면 이 값 또는 다른 사용자 세션 쿠키가 필요합니다."),
             )
+            if os.getenv("ROOKIESCAN_PASSWORD") or os.getenv("SSLC_LAB_PASSWORD"):
+                st.success("환경변수의 실습 계정 비밀번호를 사용합니다. 화면에 다시 입력할 필요가 없습니다.")
+            else:
+                st.info("이 값을 비우면 인증·인가·파일 스캐너가 REVIEW가 되므로 전체 분석이 아닙니다.")
             ssrf_verifier_payload_url = st.text_input(
                 "SSRF 검증 요청 URL (선택)",
                 value=st.session_state.get("ssrf_verifier_payload_url", ""),
@@ -119,13 +140,26 @@ elif not st.session_state.get("show_analysis", False):
         } for group in groups]
         st.dataframe(rows, hide_index=True)
 
+        session_ready = bool(st.session_state.get("scan_inputs", ("", ""))[1].strip())
+        account_ready = _account_scans_ready()
+        if not session_ready:
+            st.error("전체 분석에는 현재 로그인된 세션 쿠키가 필요합니다. 뒤로 가서 입력하세요.")
+        if not account_ready:
+            st.error("전체 분석에는 실습 계정 공통 비밀번호가 필요합니다. 뒤로 가서 필수 설정에 입력하세요.")
+        if not (st.session_state.get("ssrf_verifier_payload_url")
+                and st.session_state.get("ssrf_verifier_status_url")):
+            st.warning("SSRF 검증 서버가 없어 SSRF 항목만 REVIEW가 될 수 있습니다.")
+
         # 뒤로가기는 왼쪽, 취약점 분석하기는 오른쪽 끝에 배치
         with st.container(horizontal=True, horizontal_alignment="distribute"):
             if st.button("뒤로가기"):
                 st.session_state["show_report"] = False
                 report_panel.empty()
                 st.rerun()
-            if st.button("취약점 분석하기", disabled=not groups):
+            if st.button(
+                "취약점 분석하기",
+                disabled=not groups or not session_ready or not account_ready,
+            ):
                 st.session_state["show_analysis"] = True
                 st.session_state["analysis_pending"] = "analysis_result" not in st.session_state
                 report_panel.empty()

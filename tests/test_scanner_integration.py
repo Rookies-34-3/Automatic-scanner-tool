@@ -160,6 +160,29 @@ class ScannerIntegrationTest(unittest.TestCase):
         self.assertEqual(findings[0]["vuln"], "VULNERABLE")
         self.assertIn("raw_result", findings[0]["details"])
 
+    def test_xss_post_preserves_csrf_and_required_form_fields(self):
+        scanner = scanner_tools.ReflectedXSSScanner(timeout=1)
+        page = SimpleNamespace(text=(
+            '<form method="post">'
+            '<input type="hidden" name="csrf_token" value="fresh-token">'
+            '<select name="category" required><option value="">선택</option>'
+            '<option value="기타">기타</option></select>'
+            '<input name="title" required><textarea name="body" required></textarea>'
+            '<button name="action" value="preview">미리보기</button></form>'
+        ))
+        posted = SimpleNamespace(status_code=200, url=ARGS["url"], text="ok")
+        with patch.object(scanner.session, "get", return_value=page), \
+                patch.object(scanner.session, "post", return_value=posted) as post:
+            scanner._send({
+                "url": ARGS["url"], "method": "POST",
+                "parameters": {"title": ""}, "session_cookie": "session=test",
+            }, "title", "<xss-test>")
+        scanner.session.close()
+        self.assertEqual(post.call_args.kwargs["data"], {
+            "csrf_token": "fresh-token", "category": "기타", "title": "<xss-test>",
+            "body": "ROOKIESCAN", "action": "preview",
+        })
+
     def test_ssrf_uses_verifier_evidence_without_internal_ai(self):
         response = SimpleNamespace(
             status_code=200,

@@ -138,6 +138,7 @@ def _classify(endpoint):
     # 엔드포인트의 경로와 파라미터를 규칙 기반으로 분석해 취약점 Sink 후보를 분류
     url = endpoint["url"]
     path = urlsplit(url).path
+    method = endpoint["method"].upper()
     candidates = []
     object_reference = any(p["location"] == "path" or re.search(r"(?i)(?:^id$|_?id$)", p["name"])
                            for p in endpoint["parameters"])
@@ -159,7 +160,7 @@ def _classify(endpoint):
             for check in ("file_extension_bypass", "upload_path_traversal", "upload_code_execution"):
                 candidates.append({"type": check, "parameter": name, "filename_parameter": "filename",
                                    "tools": ["fileio"], "reason": "파일 입력을 발견해 파일명·업로드 처리 검사 대상으로 등록"})
-        elif kind in {"text", "search", "textarea", "email", "tel", "url"}:
+        elif method in {"GET", "POST"} and kind in {"text", "search", "textarea", "email", "tel", "url"}:
             checks = [("reflected_xss", "xss")] if path.rstrip("/") == "/login" else [("sqli", "sqli"), ("reflected_xss", "xss")]
             for check, tool in checks:
                 candidates.append({"type": check, "parameter": name, "tools": [tool],
