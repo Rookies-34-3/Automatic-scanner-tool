@@ -1,7 +1,10 @@
 import unittest
+import json
+import re
 from email.message import Message
 from io import BytesIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import urlsplit
@@ -9,6 +12,7 @@ from urllib.parse import urlsplit
 from streamlit.testing.v1 import AppTest
 from openai import OpenAIError
 import openai_module
+import report_writer
 import sink_finder
 from module.analysis_stub import analyze_endpoint_stub
 
@@ -44,6 +48,33 @@ def analysis_report(payload, on_progress=None):
 
 
 class StreamlitFlowTest(unittest.TestCase):
+    def setUp(self):
+        temporary = TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        writer_path = Path(temporary.name) / "report_writer.py"
+        writer_patch = patch.object(report_writer, "__file__", str(writer_path))
+        writer_patch.start()
+        self.addCleanup(writer_patch.stop)
+
+    def test_sink_json_is_saved_with_host_and_unique_identifier(self):
+        opener = SimpleNamespace(open=lambda request, timeout: response("<title>Page</title>"))
+        with patch("urllib.request.build_opener", return_value=opener):
+            app = scan()
+            first = Path(app.session_state["sink_json_path"])
+            self.assertTrue(first.exists())
+            self.assertTrue(re.fullmatch(
+                r"openai-sinks-127\.0\.0\.1-8080-\d{8}-\d{6}-[0-9a-f]{8}\.json", first.name,
+            ))
+            saved = json.loads(first.read_text(encoding="utf-8"))
+            self.assertEqual(saved, app.session_state["openai_sinks"])
+            self.assertNotIn("test-cookie", first.read_text(encoding="utf-8"))
+            app.button[0].click().run()
+            app = scan(app)
+            second = Path(app.session_state["sink_json_path"])
+        self.assertNotEqual(first, second)
+        self.assertTrue(first.exists())
+        self.assertTrue(second.exists())
+
     def test_reloads_stale_finder_and_runs_real_collection(self):
         pages = {
             "/": '<form action="/search"><input name="content" type="search"></form>'
@@ -65,12 +96,17 @@ class StreamlitFlowTest(unittest.TestCase):
                 self.assertEqual(len(app.dataframe[0].value), 5)
                 self.assertFalse(app.text_input)
                 self.assertEqual(app.caption[0].value, "발견한 엔드포인트 6개 → OpenAI 전달 그룹 5개")
+                json_path = Path(app.session_state["sink_json_path"])
+                saved = json.loads(json_path.read_text(encoding="utf-8"))
+                saved["source_marker"] = "loaded_from_json"
+                json_path.write_text(json.dumps(saved), encoding="utf-8")
                 with patch("importlib.reload", side_effect=lambda module: module), \
                         patch.object(openai_module, "analyze_sinks", side_effect=analysis_report) as analyze, \
                         patch.object(sink_finder, "find_sinks") as rerun_finder:
                     app.button[1].click().run()
                     app.run()
                     analyze.assert_called_once()
+                    self.assertEqual(analyze.call_args.args[0]["source_marker"], "loaded_from_json")
                     rerun_finder.assert_not_called()
             stale_finder.assert_not_called()
         self.assertFalse(app.exception)

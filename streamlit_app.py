@@ -4,11 +4,14 @@ ROOKIESCAN 도구 실행 및 보고서 출력하는 streamlit 기반 웹
 '''
 
 from importlib import reload
+from pathlib import Path
+import json
 
 import streamlit as st
 from openai import OpenAIError
 import sink_finder
 import openai_module
+import report_writer
 
 # 제목이 화면 위쪽에 오도록 상단 여백을 조정
 st.markdown("<style>.stMainBlockContainer {padding-top: 3rem;}</style>", unsafe_allow_html=True)
@@ -43,12 +46,14 @@ if not st.session_state.get("show_report", False):
                 # 모듈을 새로 불러와 Sink를 수집하고 OpenAI 전달용 그룹으로 묶기
                 sinks = reload(sink_finder).find_sinks(target_url, session_cookie)
                 openai_sinks = reload(openai_module).prepare_sinks_for_openai(sinks)
-        except ValueError as exc:
+                json_path = report_writer.save_sink_summary(openai_sinks, target_url.strip())
+        except (ValueError, OSError) as exc:
             st.session_state["scan_error"] = str(exc)
         else:
             # 원본과 요약을 세션에 저장하고 보고서 화면으로 전환
             st.session_state["sinks"] = sinks
             st.session_state["openai_sinks"] = openai_sinks
+            st.session_state["sink_json_path"] = str(json_path)
             st.session_state["scan_target_url"] = target_url.strip()
             st.session_state.pop("analysis_result", None)
             st.session_state.pop("analysis_error", None)
@@ -62,6 +67,8 @@ elif not st.session_state.get("show_analysis", False):
     st.subheader("Sink 탐색 보고서")
     st.write("대상 URL:", st.session_state["scan_target_url"])
     st.caption(f"발견한 엔드포인트 {len(sinks)}개 → OpenAI 전달 그룹 {len(groups)}개")
+    if "sink_json_path" in st.session_state:
+        st.caption(f"JSON 파일: output/{Path(st.session_state['sink_json_path']).name}")
     # OpenAI 전달 그룹을 한 행씩 보여주는 보고서 표
     rows = [{
         "메서드": group["method"],
@@ -91,12 +98,20 @@ else:
     if st.session_state.pop("analysis_pending", False):
         with st.status("AI가 Sink 후보를 분석 중입니다…", expanded=True) as status:
             try:
+                json_path = st.session_state.get("sink_json_path")
+                if json_path:
+                    with open(json_path, encoding="utf-8") as source:
+                        openai_sinks = json.load(source)
+                else:
+                    openai_sinks = st.session_state["openai_sinks"]
                 report = reload(openai_module).analyze_sinks(
-                    st.session_state["openai_sinks"], on_progress=status.write,
+                    openai_sinks, on_progress=status.write,
                 )
-            except (ValueError, OpenAIError) as exc:
+            except (ValueError, OSError, OpenAIError) as exc:
                 status.update(label="AI 분석 실패", state="error")
                 message = str(exc) if isinstance(exc, ValueError) else (
+                    "저장된 JSON 파일을 읽을 수 없습니다. Sink 찾기를 다시 실행하세요."
+                    if isinstance(exc, OSError) else
                     f"OpenAI 요청에 실패했습니다 ({type(exc).__name__}). "
                     "API 키, 모델 권한과 연결 상태를 확인하세요."
                 )
