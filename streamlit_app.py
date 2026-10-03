@@ -13,6 +13,10 @@ import sink_finder
 import openai_module
 import report_writer
 
+# 실행 중 pull한 경우에도 보고서 작성 함수가 있는 버전을 사용한다.
+if not hasattr(report_writer, "build_scan_report"):
+    reload(report_writer)
+
 # 제목이 화면 위쪽에 오도록 상단 여백을 조정
 st.markdown("<style>.stMainBlockContainer {padding-top: 3rem;}</style>", unsafe_allow_html=True)
 
@@ -183,7 +187,55 @@ else:
                    f"· 스캐너 호출 {report['tool_call_count']}회 · 결과 {len(report['tool_results'])}건")
         if report.get("json_path"):
             st.caption(f"최종 JSON 파일: output/{Path(report['json_path']).name}")
-        st.markdown(report["summary"])
+        # AI 문장이 아닌 원본 결과를 집계해 숫자와 확인된 항목을 표시한다.
+        snapshot = report_writer.build_scan_report(st.session_state["scan_target_url"], report)
+        counts = snapshot["summary"]
+        st.subheader("판정 집계")
+        st.table([{
+            "전체 결과": counts["total_findings"],
+            "VULNERABLE": counts["vulnerable"], "PASS": counts["pass"],
+            "REVIEW": counts["review"], "ERROR": counts["error"],
+        }])
+        st.caption("세부 판정 기준입니다. 같은 기능의 URL 변형은 별도 항목으로 집계합니다.")
+
+        st.subheader("확인된 취약점")
+        confirmed = [finding for finding in snapshot["findings"] if finding["vuln"] == "VULNERABLE"]
+        if confirmed:
+            st.table([{
+                "취약점": finding["name"], "메서드": finding["method"], "URL": finding["url"],
+                "입력 필드": ", ".join(p["name"] for p in finding["parameters"]) or "-",
+                "위험도": finding["severity"],
+            } for finding in confirmed])
+        else:
+            st.write("취약 판정으로 기록된 항목이 없습니다.")
+
+        st.subheader("AI 분석 답변")
+        if report.get("summary_scope") == "all_results":
+            st.markdown(report["summary"])
+        else:
+            # 기존 결과도 스캐너를 다시 실행하지 않고 AI 답변만 갱신할 수 있다.
+            st.caption("저장된 전체 결과를 기준으로 AI 답변을 갱신할 수 있습니다.")
+            if st.button("AI 답변 갱신"):
+                try:
+                    with st.spinner("전체 결과로 AI 답변을 작성 중입니다."):
+                        ai_module = reload(openai_module)
+                        with ai_module.get_openai_client().with_options(timeout=90, max_retries=0) as client:
+                            response = ai_module.summarize_results(report, client)
+                        updated = {**report, "model": response.model,
+                                   "summary": response.output_text.strip(), "summary_scope": "all_results"}
+                        updated_json = report_writer.build_scan_report(st.session_state["scan_target_url"], updated)
+                        updated["json_path"] = str(report_writer.save_scan_report(
+                            updated_json, st.session_state["scan_target_url"],
+                        ))
+                except (ValueError, OSError, OpenAIError) as exc:
+                    st.error(f"AI 답변을 갱신하지 못했습니다 ({type(exc).__name__}). 기존 결과는 유지됩니다.")
+                else:
+                    st.session_state["analysis_result"] = updated
+                    st.rerun()
+            with st.expander("이전 AI 답변"):
+                st.markdown(report["summary"])
+
+        st.subheader("전체 검사 결과")
         st.dataframe([{
             "메서드": result["method"], "URL": result["url"],
             "입력 필드": ", ".join(f"{p['name']} ({p['location']})" for p in result["parameters"]) or "-",

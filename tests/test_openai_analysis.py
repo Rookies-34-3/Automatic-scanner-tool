@@ -97,9 +97,13 @@ class OpenAIAnalysisTest(unittest.TestCase):
         continuation = client.responses.create.call_args.kwargs
         self.assertEqual(continuation["tool_choice"], "none")
         self.assertFalse(continuation["store"])
-        self.assertEqual(continuation["input"][-2]["type"], "function_call")
-        self.assertEqual(continuation["input"][-1]["call_id"], "call_test")
-        self.assertEqual(json.loads(continuation["input"][-1]["output"]), [FINDING])
+        self.assertEqual(continuation["input"][-3]["type"], "function_call")
+        self.assertEqual(continuation["input"][-2]["call_id"], "call_test")
+        self.assertEqual(json.loads(continuation["input"][-2]["output"]), [FINDING])
+        summary_input = json.loads(continuation["input"][-1]["content"])
+        self.assertEqual(summary_input["scope"], "all_results")
+        self.assertEqual(summary_input["summary"]["pass"], 1)
+        self.assertEqual(summary_input["findings"][0]["url"], FINDING["url"])
         self.assertNotIn("private-cookie", json.dumps(continuation, default=str))
 
     def test_uncollected_or_mismatched_tool_is_rejected_before_execution(self):
@@ -155,8 +159,14 @@ class OpenAIAnalysisTest(unittest.TestCase):
             return selection_for_payload(json.loads(kwargs["input"][0]["content"]))
 
         client.responses.create.side_effect = create
+
+        def execute_finding(_name, arguments, **_options):
+            index = int(arguments["url"].rsplit("/", 1)[1])
+            return [{**FINDING, "url": arguments["url"],
+                     "vuln": "VULNERABLE" if index in (0, 20, 40) else "PASS"}]
+
         with patch.object(openai_module, "get_openai_client", return_value=client), \
-                patch.object(openai_module, "execute_tool", return_value=[FINDING]) as execute:
+                patch.object(openai_module, "execute_tool", side_effect=execute_finding) as execute:
             report = openai_module.analyze_sinks(payload)
 
         self.assertEqual(report["selection_batch_count"], 3)
@@ -168,6 +178,14 @@ class OpenAIAnalysisTest(unittest.TestCase):
             len(json.loads(call.kwargs["input"][0]["content"])["groups"]) <= 20
             for call in selection_requests
         ))
+        summary_input = json.loads(client.responses.create.call_args.kwargs["input"][-1]["content"])
+        self.assertEqual(summary_input["tool_call_count"], 41)
+        self.assertEqual(len(summary_input["findings"]), 41)
+        self.assertEqual(summary_input["summary"]["vulnerable"], 3)
+        self.assertEqual(summary_input["summary"]["pass"], 38)
+        self.assertEqual([finding["url"] for finding in summary_input["confirmed_findings"]],
+                         [f"{URL}/{index}" for index in (0, 20, 40)])
+        self.assertEqual(report["summary_scope"], "all_results")
 
 
 if __name__ == "__main__":

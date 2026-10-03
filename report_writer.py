@@ -106,6 +106,7 @@ def build_scan_report(target_url: str, analysis: dict) -> dict:
         "ai": {
             "model": analysis.get("model"),
             "summary": analysis.get("summary", ""),
+            "summary_scope": analysis.get("summary_scope"),
             "tool_call_count": analysis.get("tool_call_count", 0),
         },
     }
