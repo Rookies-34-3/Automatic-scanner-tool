@@ -10,6 +10,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from scan.admin_exposure.scanner import run as run_admin_exposure
 from scan.directory_indexing.scanner import run as run_directory_indexing
@@ -243,6 +244,147 @@ def run(config):
     return findings
 
 
+def _replace_target_origin(url, base_url):
+    """기존 endpoint의 경로는 유지하고 origin만 base_url로 교체한다."""
+
+    target_parts = urlsplit(url)
+    base_parts = urlsplit(base_url)
+
+    return urlunsplit(
+        (
+            base_parts.scheme,
+            base_parts.netloc,
+            target_parts.path,
+            target_parts.query,
+            target_parts.fragment,
+        )
+    )
+
+
+def override_base_url(config, base_url):
+    """실행 시 입력한 base_url로 검사 대상 URL을 교체한다."""
+
+    base_url = base_url.rstrip("/")
+    parts = urlsplit(base_url)
+
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        raise ValueError(
+            "base-url은 http:// 또는 https://로 시작하는 "
+            "올바른 URL이어야 합니다."
+        )
+
+    if parts.query or parts.fragment:
+        raise ValueError(
+            "base-url에는 query string이나 fragment를 포함할 수 없습니다."
+        )
+
+    config["base_url"] = base_url
+
+    # Directory Indexing 대상 URL 변경
+    directory_config = config.get("directory_indexing", {})
+    for target in directory_config.get("targets", []):
+        if target.get("url"):
+            target["url"] = _replace_target_origin(
+                target["url"],
+                base_url,
+            )
+
+    # Admin Exposure 대상 URL 변경
+    admin_config = config.get("admin_exposure", {})
+    for target in admin_config.get("targets", []):
+        if target.get("url"):
+            target["url"] = _replace_target_origin(
+                target["url"],
+                base_url,
+            )
+
+    # Port Scan 대상 host 변경
+    portscan_config = config.get("portscan", {})
+    portscan_config["url"] = base_url
+
+    return config
+
+
+def print_summary(findings, base_url):
+    """PowerShell에서 사람이 읽기 쉬운 결과를 출력한다."""
+
+    print()
+    print("=" * 72)
+    print(" ROOKIESCAN Scan Result")
+    print(f" Target: {base_url}")
+    print("=" * 72)
+
+    for finding in findings:
+        print()
+        print(f"[{finding['name']}]")
+        print(f"Result : {finding['result']}")
+        print(f"URL    : {finding['url']}")
+        print(f"Reason : {finding['reason']}")
+
+        details = finding.get("details", {})
+
+        if "status_code" in details:
+            print(f"Status : {details['status_code']}")
+
+        if finding["name"] == "Directory Indexing":
+            indicators = details.get(
+                "matched_indicators",
+                [],
+            )
+            print(f"Found  : {indicators}")
+
+        elif finding["name"] == "Admin Page Exposure":
+            indicators = details.get(
+                "matched_indicators",
+                [],
+            )
+            print(f"Found  : {indicators}")
+
+        elif finding["name"] == "Port Scan":
+            print(
+                f"Open   : "
+                f"{details.get('open_ports', [])}"
+            )
+            print(
+                f"Allowed: "
+                f"{details.get('allowed_ports', [])}"
+            )
+            print(
+                f"Unexpected: "
+                f"{details.get('unexpected_ports', [])}"
+            )
+
+    vulnerable = sum(
+        finding["result"] == "VULNERABLE"
+        for finding in findings
+    )
+
+    passed = sum(
+        finding["result"] == "PASS"
+        for finding in findings
+    )
+
+    review = sum(
+        finding["result"] == "REVIEW"
+        for finding in findings
+    )
+
+    error = sum(
+        finding["result"] == "ERROR"
+        for finding in findings
+    )
+
+    print()
+    print("=" * 72)
+    print(" Summary")
+    print(f" VULNERABLE : {vulnerable}")
+    print(f" PASS       : {passed}")
+    print(f" REVIEW     : {review}")
+    print(f" ERROR      : {error}")
+    print("=" * 72)
+    print()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="ROOKIESCAN Scan vulnerability pipeline"
@@ -258,8 +400,18 @@ def main():
 
     parser.add_argument(
         "--output",
-        default="output/scan_findings.json",
+        default=str(
+            Path(__file__).with_name("output") / "scan_findings.json"
+        ),
         help="공통 결과 JSON 경로",
+    )
+
+    parser.add_argument(
+        "--base-url",
+        help=(
+            "실행 시 검사 대상 서버의 기본 URL. "
+            "config.json의 base_url을 덮어씁니다."
+        ),
     )
 
     args = parser.parse_args()
@@ -269,6 +421,12 @@ def main():
         encoding="utf-8-sig",
     ) as fp:
         config = json.load(fp)
+
+    if args.base_url:
+        config = override_base_url(
+            config,
+            args.base_url,
+        )
 
     findings = run(config)
 
@@ -285,6 +443,11 @@ def main():
             indent=2,
         ),
         encoding="utf-8",
+    )
+
+    print_summary(
+        findings,
+        config.get("base_url", ""),
     )
 
     print(
