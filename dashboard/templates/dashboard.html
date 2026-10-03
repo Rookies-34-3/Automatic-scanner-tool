@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ROOKIESCAN · 취약점 진단 대시보드</title>
+  <style>
+    /* 이전 UI의 색상, 카드, 그래프, 펼침 표를 복구했습니다. */
+    :root{--ink:#172b3d;--muted:#697989;--line:#dfe7ec;--bg:#f3f6f8;--red:#c7454f;--green:#187c66;--blue:#246cbd}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 'Segoe UI','Malgun Gothic',sans-serif}
+    a{color:inherit;text-decoration:none}button{font:inherit;cursor:pointer}button:focus-visible,a:focus-visible{outline:3px solid #459de7;outline-offset:4px}
+    .topbar{background:#122c40;color:white;padding:0 4%;height:76px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+    .brand{font-size:22px;font-weight:800;letter-spacing:1px;display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;background:#64d5bf;color:#122c40;border-radius:9px;width:34px;height:37px;font-size:22px}.team{font-size:12px;color:#bccbd6}.local{font-size:12px;border:1px solid #466073;border-radius:20px;padding:5px 13px;white-space:nowrap}.local::before{content:'●';color:#69d2b7;margin-right:8px}
+    main{max-width:1500px;margin:auto;padding:32px 4% 48px}.heading{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}.eyebrow{color:var(--blue);font-size:11px;font-weight:800;letter-spacing:2px;margin:0 0 6px}h1{font-size:28px;letter-spacing:-1px;line-height:1.3;margin:0 0 8px}.subtitle{color:var(--muted);margin:0}.actions{display:flex;gap:8px;flex-wrap:wrap}.action{display:inline-block;padding:9px 15px;border:1px solid #cbd7df;border-radius:7px;background:white;font-weight:600;white-space:nowrap}.action.primary{background:#246cbd;border-color:#246cbd;color:white}.action:hover{filter:brightness(.96)}
+    .notice{padding:12px 16px;border-radius:7px;margin-bottom:18px;background:#fff4d9;border:1px solid #ebd59a;color:#70551a}.notice p{margin:3px 0}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}.card{background:white;border:1px solid var(--line);border-radius:10px;padding:20px 23px;position:relative;overflow:hidden}.card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px;background:var(--accent,#246cbd)}.card-label{color:var(--muted);font-size:13px;font-weight:600}.card-number{font-size:38px;line-height:1.3;font-weight:750;letter-spacing:-1px;margin-top:8px}.card-number small{font-size:13px;font-weight:400;letter-spacing:0;color:var(--muted);margin-left:7px}.card-note{font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.7px}
+    .charts{display:grid;grid-template-columns:1.45fr 1fr;gap:20px;margin-bottom:24px}.panel{background:white;border:1px solid var(--line);border-radius:10px;overflow:hidden}.panel-head{padding:20px 23px 0;display:flex;justify-content:space-between;align-items:start;gap:16px}h2{font-size:16px;margin:0;font-weight:750}.caption{font-size:12px;color:var(--muted);margin:3px 0 0}.chart-body{height:245px;padding:20px 24px 24px}.donut-body{display:flex;align-items:center;padding:20px 24px 24px;gap:24px;height:245px}.donut-wrap{height:195px;position:relative;flex:1;min-width:0}.legend{min-width:110px;list-style:none;padding:0;margin:0}.legend li{display:flex;align-items:center;gap:8px;margin:12px 0;font-size:12px}.legend strong{margin-left:auto}.dot{width:9px;height:9px;border-radius:3px;background:var(--dot);display:inline-block}.chart-note{color:var(--muted);font-size:12px;padding:0 24px 16px}.chart-empty{display:grid;place-items:center;height:100%;color:var(--muted)}
+    .table-head{padding-bottom:18px}.count-tag{font-size:12px;color:var(--blue);background:#edf4fb;border-radius:5px;padding:3px 9px;white-space:nowrap}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left;table-layout:fixed;min-width:1000px}th{background:#f7f9fb;font-size:11px;color:#617487;font-weight:700;padding:12px 16px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}td{padding:16px;vertical-align:top;border-bottom:1px solid #edf1f4;font-size:12px;overflow-wrap:anywhere}.finding-row{cursor:pointer}.finding-row:hover,.finding-row.open{background:#f5f9fd}.category{font-weight:650;font-size:12px}.path{font-family:Consolas,monospace;font-size:11px}.method{display:block;font-size:10px;color:var(--muted);margin-top:5px}code{font:11px/1.5 Consolas,monospace;background:#f0f3f6;border-radius:4px;padding:2px 5px;white-space:pre-wrap;overflow-wrap:anywhere}.badge{display:inline-block;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:650;white-space:nowrap}.result-VULNERABLE{color:#b52c3f;background:#fcebef}.result-SAFE{color:#13725c;background:#e6f5ef}.result-na{color:#687582;background:#edf0f3}.severity-HIGH{color:#b52c3f}.severity-MEDIUM{color:#ac691c}.severity-LOW{color:#246cbd}.severity-INFO{color:#75818d}.expand{border:0;background:none;color:var(--blue);padding:0;text-align:left;font-size:11px;margin-top:8px}.detail td{background:#f6f9fc;padding:20px 24px}.detail h3{font-size:13px;margin:0 0 8px}.detail p{margin:4px 0;white-space:pre-wrap}.detail-meta{font-size:11px;color:var(--muted);margin-top:14px!important}.empty{padding:48px;text-align:center;color:var(--muted)}footer{display:flex;justify-content:space-between;gap:16px;color:var(--muted);font-size:11px;margin-top:20px}.safe-note{margin:12px 0 0;color:var(--muted);font-size:11px}[hidden]{display:none!important}
+    @media(max-width:850px){.charts{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}.heading{align-items:start;flex-direction:column}.team{display:none}h1{font-size:24px}footer{flex-direction:column;gap:3px}.donut-body{gap:14px}}
+    @media(max-width:430px){main{padding:24px 16px}.topbar{padding:0 16px}.brand{font-size:18px}.card{padding:16px}.card-number{font-size:32px}.local{font-size:10px}}
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="brand"><span class="logo" aria-hidden="true">R</span> ROOKIESCAN <span class="team">/ 취약점 싹쓰리</span></div><span class="local">LOCAL DASHBOARD</span></header>
+  <main>
+    <section class="heading"><div><p class="eyebrow">SECURITY OVERVIEW</p><h1>취약점 진단 결과</h1><p class="subtitle">스캐너의 점검 결과와 대응 방안을 한눈에 확인하세요.</p></div><nav class="actions" aria-label="데이터 선택"><a class="action" href="{{ url_for('dashboard', sample=0 if sample else 1) }}">{{ '실제 결과 보기' if sample else '샘플 결과 보기' }}</a><a class="action primary" href="{{ url_for('dashboard', sample=1 if sample else 0) }}">↻ 결과 새로고침</a></nav></section>
+    {% if sample %}<div class="notice"><strong>샘플 데이터 모드</strong> · 아래 결과는 화면 확인용 예시이며 실제 진단 결과와 분리되어 있습니다.</div>{% endif %}
+    {% if warnings %}<div class="notice" role="alert"><strong>일부 데이터를 불러오지 못했습니다. 아래 집계는 정상적으로 읽은 항목 기준입니다.</strong>{% for warning in warnings %}<p>{{ warning }}</p>{% endfor %}</div>{% endif %}
+    <section class="cards" aria-label="점검 요약">
+      {% for label, count, color, note in [('전체 점검', summary.total, '#246cbd', 'TOTAL CHECKS'), ('취약', summary.results.VULNERABLE, '#c7454f', 'VULNERABLE'), ('양호', summary.results.SAFE, '#187c66', 'SAFE'), ('판정불가', summary.results['N/A'], '#87939e', 'N/A')] %}
+      <article class="card" style="--accent:{{ color }}"><div class="card-label">{{ label }}</div><div class="card-number" style="color:{{ color }}">{{ count }}<small>건</small></div><div class="card-note">{{ note }}</div></article>{% endfor %}
+    </section>
+    <section class="charts" aria-label="진단 결과 그래프">
+      <article class="panel"><div class="panel-head"><div><h2>유형별 취약점</h2><p class="caption">취약(VULNERABLE)으로 판정된 점검 수</p></div><span class="count-tag">{{ summary.results.VULNERABLE }}건 발견</span></div><div class="chart-body">{% if findings %}<canvas id="category-chart" role="img" aria-label="유형별 취약 건수: {% for name in summary.categories %}{{ name }} {{ summary.vulnerable_counts[loop.index0] }}건. {% endfor %}"></canvas>{% else %}<div class="chart-empty">표시할 진단 결과가 없습니다.</div>{% endif %}</div><p class="chart-note" id="chart-fallback" hidden>그래프를 불러오지 못했습니다. 인터넷 연결을 확인하세요. 요약 카드와 상세 표는 그대로 사용할 수 있습니다.</p></article>
+      <article class="panel"><div class="panel-head"><div><h2>위험도 분포</h2><p class="caption">모든 판정 결과의 severity 기준 · 양호 / 판정불가 포함</p></div></div><div class="donut-body"><div class="donut-wrap">{% if findings %}<canvas id="severity-chart" role="img" aria-label="위험도별 건수: {% for name in summary.severity_labels %}{{ name }} {{ summary.severity_counts[loop.index0] }}건. {% endfor %}"></canvas>{% else %}<div class="chart-empty">집계 데이터 없음</div>{% endif %}</div><ul class="legend">{% for name in summary.severity_labels %}<li><span class="dot" style="--dot:{{ ['#c7454f','#e5aa55','#518dc9','#bcc8d3'][loop.index0] }}"></span>{{ name }} <strong>{{ summary.severity_counts[loop.index0] }}</strong></li>{% endfor %}</ul></div></article>
+    </section>
+    <section class="panel" aria-labelledby="results-title"><div class="panel-head table-head"><div><h2 id="results-title">상세 진단 결과</h2><p class="caption">행 또는 ‘대응 방안 보기’를 누르면 조치 내용을 확인할 수 있습니다.</p></div><span class="count-tag">{{ summary.total }}개 결과</span></div>
+      {% if findings %}<div class="table-scroll"><table><colgroup><col style="width:15%"><col style="width:17%"><col style="width:9%"><col style="width:12%"><col style="width:9%"><col style="width:8%"><col style="width:30%"></colgroup><thead><tr>{% for label in ['취약점 유형','대상 경로','파라미터','페이로드','판정','위험도','탐지 근거'] %}<th scope="col">{{ label }}</th>{% endfor %}</tr></thead><tbody>
+        {% for item in findings %}
+        <!-- 자동 이스케이프를 유지해 페이로드가 실행되지 않도록 합니다. -->
+        <tr class="finding-row" data-detail="detail-{{ loop.index }}"><td><span class="category">{{ item.category }}</span><br><button class="expand" type="button" aria-expanded="false" aria-controls="detail-{{ loop.index }}" aria-label="{{ item.category }} {{ item.target_url }} 대응 방안 보기">대응 방안 보기 ＋</button></td><td><span class="path">{{ item.target_url }}</span><span class="method">{{ item.method }} · HTTP {{ item.status_code if item.status_code is not none else '—' }}</span></td><td>{{ item.parameter }}</td><td>{% if item.payload is not none %}<code>{{ item.payload }}</code>{% else %}<span class="caption">—</span>{% endif %}</td><td><span class="badge result-{{ 'na' if item.result == 'N/A' else item.result }}">{{ result_labels[item.result] }}</span></td><td><strong class="severity-{{ item.severity }}">{{ item.severity }}</strong></td><td>{{ item.evidence }}</td></tr>
+        <tr class="detail" id="detail-{{ loop.index }}" hidden><td colspan="7"><h3>대응 방안</h3><p>{{ item.remediation or '등록된 대응 방안이 없습니다.' }}</p><p class="detail-meta">{{ item.scan_id }} · 진단 시각 {{ item.scanned_at }} · 판정 {{ item.result }}</p></td></tr>{% endfor %}
+      </tbody></table></div>{% else %}<div class="empty"><strong>아직 표시할 결과가 없습니다.</strong><br>결과 JSON 파일을 준비한 뒤 새로고침하거나, 샘플 결과 보기를 눌러 화면을 확인하세요.</div>{% endif %}
+    </section>
+    <p class="safe-note">양호(SAFE)는 수행한 검사 범위에서 취약 증거를 발견하지 못했다는 뜻입니다. 파일의 각 항목을 1건으로 집계합니다.</p><footer><span>{{ '샘플' if sample else '실제' }} 데이터 · {{ sources | join(', ') }} · 새로고침 시 파일을 다시 읽습니다.</span><span>불러온 시각 {{ loaded_at }}</span></footer>
+  </main>
+  <script>
+    // 그래프 로딩 여부와 무관하게 대응 방안 펼침은 동작합니다.
+    document.querySelectorAll('.finding-row').forEach(row => row.addEventListener('click', () => {
+      const detail = document.getElementById(row.dataset.detail), button = row.querySelector('button');
+      detail.hidden = !detail.hidden; row.classList.toggle('open', !detail.hidden);
+      button.setAttribute('aria-expanded', String(!detail.hidden));
+      button.textContent = detail.hidden ? '대응 방안 보기 ＋' : '대응 방안 닫기 −';
+    }));
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <script>
+    const summary = {{ summary | tojson }};
+    if (summary.total && typeof Chart === 'undefined') document.getElementById('chart-fallback').hidden = false;
+    else if (summary.total) {
+      Chart.defaults.font.family = "'Segoe UI', 'Malgun Gothic', sans-serif"; Chart.defaults.color = '#697989';
+      new Chart(document.getElementById('category-chart'), {type:'bar',data:{labels:summary.categories,datasets:[{label:'취약 건수',data:summary.vulnerable_counts,backgroundColor:'#397bb6',borderRadius:5,maxBarThickness:42}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,suggestedMax:1,ticks:{precision:0},grid:{color:'#edf1f4'}},x:{grid:{display:false},ticks:{autoSkip:false}}}}});
+      new Chart(document.getElementById('severity-chart'), {type:'doughnut',data:{labels:summary.severity_labels,datasets:[{data:summary.severity_counts,backgroundColor:['#c7454f','#e5aa55','#518dc9','#bcc8d3'],borderWidth:4,borderColor:'#fff',hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'73%',plugins:{legend:{display:false}}}});
+    }
+  </script>
+</body>
+</html>
