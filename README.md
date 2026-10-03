@@ -41,6 +41,8 @@ AWS에 배포한 도메인이나 공인 IP도 `http` 또는 `https` URL로 입�
 `openai_module.py`는 전달 데이터 집계와 Responses API function call을 담당한다.
 AI가 Sink 후보에 허용된 함수만 선택하면 애플리케이션이 로컬 스캐너를 실행하고 결과를
 AI에 돌려줘 근거를 요약한다. 세션 쿠키와 자격 증명은 AI 입력에 포함하지 않는다.
+후보가 많은 사이트에서는 한 AI 응답에 최대 20개씩 나누어 Function call을 수행하고,
+모든 스캐너 결과를 모은 뒤 한 번의 최종 요약을 생성한다.
 `report_writer.py`는 공통 finding과 대시보드용 그룹을 함께 가진 최종 JSON을 생성한다.
 
 ## OpenAI 전달용 집계

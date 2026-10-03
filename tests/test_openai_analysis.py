@@ -45,6 +45,28 @@ def selection(url=URL, parameters=None, name="scan_sqli"):
     return SimpleNamespace(status="completed", output=[call])
 
 
+def selection_for_payload(payload):
+    calls = []
+    index = 0
+    for group in payload["groups"]:
+        for variant in group["request_variants"]:
+            for candidate in variant.get("candidate_tools", group.get("candidate_tools", [])):
+                index += 1
+                name = "scan_reflected_xss" if candidate == "xss" else f"scan_{candidate}"
+                calls.append(ResponseFunctionToolCall(
+                    type="function_call",
+                    name=name,
+                    call_id=f"call_{index}_{variant['sample_url']}",
+                    id=f"fc_{index}",
+                    arguments=json.dumps({
+                        "url": variant["sample_url"],
+                        "method": group["method"],
+                        "parameters": variant["parameters"],
+                    }),
+                ))
+    return SimpleNamespace(status="completed", output=calls)
+
+
 class OpenAIAnalysisTest(unittest.TestCase):
     def client(self, first):
         client = MagicMock()
@@ -106,6 +128,46 @@ class OpenAIAnalysisTest(unittest.TestCase):
                 patch.object(openai_module, "execute_tool", return_value=[FINDING]):
             with self.assertRaisesRegex(ValueError, "AI 요약이 완료되지"):
                 openai_module.analyze_sinks(PAYLOAD)
+
+    def test_large_candidate_set_is_split_into_safe_selection_batches(self):
+        payload = {"candidate_status": "unverified", "groups": []}
+        for index in range(41):
+            payload["groups"].append({
+                "method": "GET",
+                "path_template": f"/search/{index}",
+                "candidate_tools": ["sqli"],
+                "discovered_count": 1,
+                "request_variants": [{
+                    "sample_url": f"{URL}/{index}",
+                    "parameters": PARAMETERS,
+                }],
+            })
+
+        client = MagicMock()
+        client.with_options.return_value = client
+        client.__enter__.return_value = client
+
+        def create(**kwargs):
+            if kwargs["tool_choice"] == "none":
+                return SimpleNamespace(
+                    status="completed", model="gpt-6.1-sol", output_text="분할 실행 완료",
+                )
+            return selection_for_payload(json.loads(kwargs["input"][0]["content"]))
+
+        client.responses.create.side_effect = create
+        with patch.object(openai_module, "get_openai_client", return_value=client), \
+                patch.object(openai_module, "execute_tool", return_value=[FINDING]) as execute:
+            report = openai_module.analyze_sinks(payload)
+
+        self.assertEqual(report["selection_batch_count"], 3)
+        self.assertEqual(report["tool_call_count"], 41)
+        self.assertEqual(execute.call_count, 41)
+        self.assertEqual(client.responses.create.call_count, 4)
+        selection_requests = client.responses.create.call_args_list[:-1]
+        self.assertTrue(all(
+            len(json.loads(call.kwargs["input"][0]["content"])["groups"]) <= 20
+            for call in selection_requests
+        ))
 
 
 if __name__ == "__main__":

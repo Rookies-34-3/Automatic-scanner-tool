@@ -19,6 +19,10 @@ from module.tool_registry import (
 )
 
 
+MAX_CALLS_PER_SELECTION = 20
+MAX_TOTAL_TOOL_CALLS = 100
+
+
 def get_openai_client() -> OpenAI:
     """Create a client from the project-local .env without exposing its key."""
     load_dotenv(Path(__file__).resolve().with_name(".env"), override=True)
@@ -106,6 +110,34 @@ def _allowed_calls(groups: list[dict]) -> dict[tuple, set[str]]:
     return allowed
 
 
+def _selection_batches(openai_sinks: dict, limit: int = MAX_CALLS_PER_SELECTION) -> list[dict]:
+    """Split request variants so one AI response never needs too many tool calls."""
+    batches: list[dict] = []
+    current_groups: list[dict] = []
+    current_count = 0
+    common = {key: deepcopy(value) for key, value in openai_sinks.items() if key != "groups"}
+
+    for group in openai_sinks.get("groups", []):
+        for variant in group.get("request_variants", []):
+            single = deepcopy(group)
+            single["request_variants"] = [deepcopy(variant)]
+            candidate_count = sum(len(names) for names in _allowed_calls([single]).values())
+            if not candidate_count:
+                continue
+            if candidate_count > limit:
+                raise ValueError("한 요청 형태의 스캐너 후보 수가 AI 호출 제한을 초과했습니다.")
+            if current_groups and current_count + candidate_count > limit:
+                batches.append({**deepcopy(common), "groups": current_groups})
+                current_groups = []
+                current_count = 0
+            current_groups.append(single)
+            current_count += candidate_count
+
+    if current_groups:
+        batches.append({**deepcopy(common), "groups": current_groups})
+    return batches
+
+
 def analyze_sinks(
     openai_sinks: dict,
     session_cookie: str | dict = "",
@@ -119,6 +151,10 @@ def analyze_sinks(
     allowed = _allowed_calls(groups)
     if not any(allowed.values()):
         raise ValueError("실행할 취약점 스캐너 후보가 없습니다.")
+    batches = _selection_batches(openai_sinks)
+    expected_total = sum(len(names) for names in allowed.values())
+    if expected_total > MAX_TOTAL_TOOL_CALLS:
+        raise ValueError("전체 스캐너 후보 수가 안전 제한을 초과했습니다.")
 
     progress = on_progress or (lambda message: None)
     instructions = (
@@ -141,59 +177,65 @@ def analyze_sinks(
         "tools": TOOL_SCHEMAS,
         "store": False,
     }
-    messages = [{"role": "user", "content": json.dumps(openai_sinks, ensure_ascii=False)}]
+    messages = []
 
     with get_openai_client().with_options(timeout=90, max_retries=0) as client:
-        progress(f"엔드포인트 {len(groups)}개 그룹에서 실행할 스캐너를 선택하고 있습니다.")
-        selection = client.responses.create(
-            **options,
-            input=messages,
-            parallel_tool_calls=True,
-            tool_choice="auto",
-        )
-        calls = [item for item in selection.output if item.type == "function_call"]
-        if selection.status != "completed" or not calls:
-            raise ValueError("AI가 실행할 스캐너를 선택하지 못했습니다. 다시 시도하세요.")
-        if len(calls) > 50:
-            raise ValueError("AI의 스캐너 호출 수가 안전 제한을 초과했습니다.")
-
         seen = set()
-        outputs_by_call = {}
         findings = []
-        for call in calls:
-            try:
-                arguments = validate_arguments(json.loads(call.arguments))
-            except (json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
-                raise ValueError("AI의 함수 입력 형식이 올바르지 않습니다.") from exc
-            request_key = (
-                arguments["url"],
-                arguments["method"],
-                frozenset((item["name"], item["location"]) for item in arguments["parameters"]),
+        for batch_index, batch in enumerate(batches, 1):
+            progress(
+                f"AI 스캐너 선택 {batch_index}/{len(batches)} · "
+                f"전체 후보 {expected_total}개를 분할 처리하고 있습니다."
             )
-            if request_key not in allowed or call.name not in allowed[request_key]:
-                raise ValueError("AI가 Sink 탐색 결과에 없는 스캐너 또는 입력 지점을 요청했습니다.")
-            dedupe_key = (call.name, request_key)
-            if dedupe_key in seen:
-                outputs_by_call[call.call_id] = []
-                continue
-            seen.add(dedupe_key)
-            progress(f"{call.name} 실행 중: {arguments['method']} {arguments['url']}")
-            tool_findings = execute_tool(
-                call.name,
-                arguments,
-                session_cookie=session_cookie,
-                options=scanner_options,
+            batch_messages = [{"role": "user", "content": json.dumps(batch, ensure_ascii=False)}]
+            selection = client.responses.create(
+                **options,
+                input=batch_messages,
+                parallel_tool_calls=True,
+                tool_choice="auto",
             )
-            outputs_by_call[call.call_id] = tool_findings
-            findings.extend(tool_findings)
+            calls = [item for item in selection.output if item.type == "function_call"]
+            if selection.status != "completed" or not calls:
+                raise ValueError("AI가 실행할 스캐너를 선택하지 못했습니다. 다시 시도하세요.")
+            if len(calls) > MAX_CALLS_PER_SELECTION:
+                raise ValueError("AI의 단일 스캐너 호출 수가 안전 제한을 초과했습니다.")
 
-        messages.extend(item.model_dump(exclude_none=True) for item in selection.output)
-        for call in calls:
-            messages.append({
-                "type": "function_call_output",
-                "call_id": call.call_id,
-                "output": json.dumps(outputs_by_call[call.call_id], ensure_ascii=False),
-            })
+            outputs_by_call = {}
+            for call in calls:
+                try:
+                    arguments = validate_arguments(json.loads(call.arguments))
+                except (json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+                    raise ValueError("AI의 함수 입력 형식이 올바르지 않습니다.") from exc
+                request_key = (
+                    arguments["url"],
+                    arguments["method"],
+                    frozenset((item["name"], item["location"]) for item in arguments["parameters"]),
+                )
+                if request_key not in allowed or call.name not in allowed[request_key]:
+                    raise ValueError("AI가 Sink 탐색 결과에 없는 스캐너 또는 입력 지점을 요청했습니다.")
+                dedupe_key = (call.name, request_key)
+                if dedupe_key in seen:
+                    outputs_by_call[call.call_id] = []
+                    continue
+                seen.add(dedupe_key)
+                progress(f"{call.name} 실행 중: {arguments['method']} {arguments['url']}")
+                tool_findings = execute_tool(
+                    call.name,
+                    arguments,
+                    session_cookie=session_cookie,
+                    options=scanner_options,
+                )
+                outputs_by_call[call.call_id] = tool_findings
+                findings.extend(tool_findings)
+
+            messages.extend(batch_messages)
+            messages.extend(item.model_dump(exclude_none=True) for item in selection.output)
+            for call in calls:
+                messages.append({
+                    "type": "function_call_output",
+                    "call_id": call.call_id,
+                    "output": json.dumps(outputs_by_call[call.call_id], ensure_ascii=False),
+                })
         progress(f"스캐너 {len(seen)}회 실행 완료. AI가 근거를 정리하고 있습니다.")
         response = client.responses.create(**options, input=messages, tool_choice="none")
         if response.status != "completed" or not response.output_text.strip():
@@ -202,6 +244,7 @@ def analyze_sinks(
     return {
         "model": response.model,
         "group_count": len(groups),
+        "selection_batch_count": len(batches),
         "tool_call_count": len(seen),
         "summary": response.output_text.strip(),
         "tool_results": findings,
