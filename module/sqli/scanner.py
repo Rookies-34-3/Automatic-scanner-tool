@@ -81,6 +81,36 @@ class Scanner:
         if response.status_code != 200 or login_form(response):
             raise ScanError(f"게시판 접근 실패 또는 세션 만료 (HTTP {response.status_code})")
 
+    def form_hidden_fields(self, target):
+        """같은 세션으로 POST 폼을 열어 CSRF를 포함한 hidden 값을 가져온다."""
+        page = self.request("GET", target["path"])
+        self.check_page(page)
+        target_url = urljoin(self.base, target["path"])
+        target_parts = urlsplit(target_url)
+        forms = []
+        for form in soup(page).select("form"):
+            if form.get("method", "GET").upper() != "POST":
+                continue
+            action = urlsplit(urljoin(target_url, form.get("action") or target_url))
+            if (action.scheme, action.netloc, action.path) == (
+                target_parts.scheme, target_parts.netloc, target_parts.path,
+            ):
+                forms.append(form)
+        form = next((item for item in forms if any(
+            field.get("name") == target["parameter"] for field in item.select("[name]")
+        )), forms[0] if len(forms) == 1 else None)
+        if form is None:
+            raise ScanError("POST 대상과 일치하는 폼을 찾지 못했습니다.")
+
+        fields = {
+            field["name"]: field.get("value", "")
+            for field in form.select('input[type="hidden"][name]')
+        }
+        csrf = next((value for name, value in fields.items() if "csrf" in name.lower()), None)
+        if csrf is not None and not csrf:
+            raise ScanError("POST 폼의 CSRF 토큰 값이 비어 있습니다.")
+        return fields
+
     def result_text(self, response, payload):
         document = soup(response)
         selector = self.config.get("result_selector", "tbody")
@@ -108,7 +138,8 @@ class Scanner:
         def fetch(payload):
             # 입력 방식만 선택합니다. 페이로드와 아래의 판정 조건은 기존 그대로입니다.
             method = target.get("method", "GET")
-            request_data = {target["parameter"]: payload}
+            request_data = self.form_hidden_fields(target) if method == "POST" else {}
+            request_data[target["parameter"]] = payload
             options = {"params": request_data} if method == "GET" else {"data": request_data}
             response = self.request(method, target["path"], **options)
             finding["status_code"] = response.status_code
@@ -118,6 +149,9 @@ class Scanner:
 
         boolean_started = False  # 추가 증거 수집 중 발생한 실패를 구분합니다.
         try:
+            if (target.get("method", "GET") == "POST"
+                    and "csrf" in target["parameter"].lower()):
+                raise ScanError("CSRF 토큰은 요청 제어값이므로 SQL 인젝션 검사에서 제외했습니다.")
             baseline = fetch("")
             self.check_page(baseline)
             if MYSQL_ERROR.search(baseline.text):
