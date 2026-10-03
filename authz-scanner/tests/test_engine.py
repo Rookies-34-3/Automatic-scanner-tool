@@ -91,7 +91,12 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(result["summary"]["vulnerable"], 1)
         self.assertEqual(result["summary"]["pass"], 1)
         self.assertEqual(result["findings"][0]["severity"], "HIGH")
-        self.assertEqual(result["findings"][1]["result"], "PASS")
+        self.assertEqual(result["findings"][1]["vuln"], "PASS")
+        self.assertTrue(
+            {"url", "method", "parameters", "vuln", "result"}.issubset(
+                result["findings"][0]
+            )
+        )
 
     def test_rejects_state_changing_method(self):
         config = self.config()
@@ -103,6 +108,7 @@ class ScannerTests(unittest.TestCase):
         result = run_scan(self.config())
         self.assertNotIn("alice-token", json.dumps(result))
         self.assertNotIn("bob-token", json.dumps(result))
+        self.assertNotIn("session_cookie", json.dumps(result))
 
 
 if __name__ == "__main__":

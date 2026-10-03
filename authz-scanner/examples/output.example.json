@@ -1,0 +1,12 @@
+{
+  "url": "http://127.0.0.1:8080/api/profiles/{user_id}",
+  "method": "GET",
+  "parameters": [
+    {
+      "name": "user_id",
+      "location": "path"
+    }
+  ],
+  "vuln": "VULNERABLE",
+  "result": "다른 사용자 세션으로 소유자 데이터 조회에 성공했습니다."
+}

@@ -56,6 +56,32 @@ class AuthenticationCase:
     cookie_override: str | None = None
 
 
+def common_parameters(test: dict[str, Any]) -> list[dict[str, str]]:
+    parameters: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in test.get("parameters", []):
+        if not isinstance(item, dict) or not item.get("name"):
+            continue
+        key = (str(item["name"]), str(item.get("location", "query")))
+        if key not in seen:
+            seen.add(key)
+            parameters.append({"name": key[0], "location": key[1]})
+    for name in re.findall(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", str(test["path"])):
+        if (name, "path") not in seen:
+            seen.add((name, "path"))
+            parameters.append({"name": name, "location": "path"})
+    for name in test.get("query_params", {}):
+        key = (str(name), "query")
+        if key not in seen:
+            seen.add(key)
+            parameters.append({"name": key[0], "location": key[1]})
+    return parameters
+
+
+def common_url(config: dict[str, Any], test: dict[str, Any]) -> str:
+    return config["base_url"].rstrip("/") + str(test["path"])
+
+
 def load_config(path: str) -> dict[str, Any]:
     try:
         with open(path, "r", encoding="utf-8") as config_file:
@@ -405,14 +431,18 @@ def scan_test(
         if missing_markers:
             reason = "정상 기준 응답에서 required_markers를 찾지 못했습니다."
         return {
+            "scanner_id": "authn",
             "name": test["name"],
+            "url": common_url(config, test),
             "method": method,
-            "path": test["path"],
-            "result": "ERROR",
+            "parameters": common_parameters(test),
+            "vuln": "ERROR",
+            "result": reason,
             "severity": "INFO",
-            "reason": reason,
-            "valid_observation": valid.public_dict(),
-            "checks": [],
+            "details": {
+                "valid_observation": valid.public_dict(),
+                "checks": [],
+            },
         }
 
     sensitive_fields = [str(item) for item in test.get("sensitive_fields", [])]
@@ -449,14 +479,18 @@ def scan_test(
     else:
         result = "PASS"
     return {
+        "scanner_id": "authn",
         "name": test["name"],
+        "url": common_url(config, test),
         "method": method,
-        "path": test["path"],
-        "result": result,
+        "parameters": common_parameters(test),
+        "vuln": result,
+        "result": highest["reason"],
         "severity": highest["severity"],
-        "reason": highest["reason"],
-        "valid_observation": valid.public_dict(),
-        "checks": checks,
+        "details": {
+            "valid_observation": valid.public_dict(),
+            "checks": checks,
+        },
     }
 
 
@@ -470,14 +504,14 @@ def run_scan(config: dict[str, Any], timeout: float = 5.0) -> dict[str, Any]:
     ]
     summary = {
         "total": len(findings),
-        "vulnerable": sum(item["result"] == "VULNERABLE" for item in findings),
-        "pass": sum(item["result"] == "PASS" for item in findings),
-        "review": sum(item["result"] == "REVIEW" for item in findings),
-        "error": sum(item["result"] == "ERROR" for item in findings),
+        "vulnerable": sum(item["vuln"] == "VULNERABLE" for item in findings),
+        "pass": sum(item["vuln"] == "PASS" for item in findings),
+        "review": sum(item["vuln"] == "REVIEW" for item in findings),
+        "error": sum(item["vuln"] == "ERROR" for item in findings),
     }
     return {
         "tool": "AuthNScanner",
-        "version": "2.0.0",
+        "version": "3.0.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "target": config["base_url"],
         "authentication_type": authentication_type(

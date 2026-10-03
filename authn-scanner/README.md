@@ -2,6 +2,16 @@
 
 웹 개발자가 제공한 보호 API에 정상·비정상 인증 요청을 자동 전송하여 **불충분한 인증 절차**를 탐지하는 핵심 검사 도구입니다. Bearer 토큰과 폼 로그인 기반 세션 인증을 지원하며, 실행 결과를 표준 JSON으로 반환합니다.
 
+## 최종 전달 파일
+
+- 실행 코드: `authn_scanner/`
+- 최종 설정 예시: `examples/config.example.json`
+- 최종 출력 예시: `examples/output.example.json`
+- 자동 테스트: `tests/test_engine.py`
+- 사용 설명: `README.md`
+
+AWS 주소가 들어간 별도 설정과 실제 실행 결과 JSON은 저장소에서 제거했습니다. 대상별 설정이 필요하면 `config.example.json`을 `config.local.json`으로 복사해 사용하며, `*.local.json`은 Git에 올라가지 않습니다.
+
 ## 검사 항목
 
 - 인증정보 없음
@@ -40,6 +50,28 @@ python -m authn_scanner `
 --output-json result\authn.json
 ```
 
+`result/`, `output/`, `*-result.json`은 생성 결과이므로 Git에 커밋하지 않습니다.
+
+## 공통 입출력 계약
+
+Function call과 통합 파이프라인에서 사용하는 공통 입력 필드는 `url`, `method`, `parameters`, `session_cookie`입니다. 이 스캐너는 계정으로 정상 세션을 직접 만든 뒤 비정상 세션과 비교하므로 기본 `session_cookie` 값은 `null`입니다. 쿠키를 직접 전달해야 하면 원문 대신 `name`과 `value_env`를 사용합니다.
+
+각 발견 결과는 다음 필드를 반드시 반환합니다.
+
+동일한 내용은 [output.example.json](examples/output.example.json)에서도 확인할 수 있습니다.
+
+```json
+{
+  "url": "http://127.0.0.1:8080/admin",
+  "method": "GET",
+  "parameters": [],
+  "vuln": "VULNERABLE",
+  "result": "유효하지 않은 인증 상태에서 보호 내용이 반환되었습니다."
+}
+```
+
+상태 코드와 응답 비교 정보는 `details`에 보존되며 토큰과 세션 쿠키 원문은 출력하지 않습니다.
+
 ## 핵심 구조
 
 ```text
@@ -50,6 +82,12 @@ authn_scanner/
 ├── __init__.py     run_scan 공개
 └── __main__.py     python -m 실행 진입점
 ```
+
+통합 진입점은 `from authn_scanner import run_scan`입니다. `main/module`의 Function call 어댑터에서는 이 함수를 호출합니다.
+
+## 자체 테스트
+
+테스트 파일은 최종 스캐너와 섞이지 않도록 `tests/`에만 보관합니다.
 
 ```powershell
 python -m unittest discover -s tests -v

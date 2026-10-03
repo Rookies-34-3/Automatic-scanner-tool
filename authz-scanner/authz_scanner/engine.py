@@ -46,6 +46,32 @@ class HTTPObservation:
         return data
 
 
+def common_parameters(test: dict[str, Any]) -> list[dict[str, str]]:
+    parameters: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in test.get("parameters", []):
+        if not isinstance(item, dict) or not item.get("name"):
+            continue
+        key = (str(item["name"]), str(item.get("location", "query")))
+        if key not in seen:
+            seen.add(key)
+            parameters.append({"name": key[0], "location": key[1]})
+    for name in re.findall(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", str(test["path"])):
+        if (name, "path") not in seen:
+            seen.add((name, "path"))
+            parameters.append({"name": name, "location": "path"})
+    for name in test.get("query_params", {}):
+        key = (str(name), "query")
+        if key not in seen:
+            seen.add(key)
+            parameters.append({"name": key[0], "location": key[1]})
+    return parameters
+
+
+def common_url(config: dict[str, Any], test: dict[str, Any]) -> str:
+    return config["base_url"].rstrip("/") + str(test["path"])
+
+
 def load_config(path: str) -> dict[str, Any]:
     try:
         with open(path, "r", encoding="utf-8") as config_file:
@@ -372,17 +398,21 @@ def scan_test(
     owner = observe_request(url, method, owner_context, timeout, headers)
     if owner.status is None or not 200 <= owner.status < 300:
         return {
+            "scanner_id": "authz",
             "name": test["name"],
+            "url": common_url(config, test),
             "method": method,
-            "path": test["path"],
-            "owner_account": owner_name,
-            "attacker_account": attacker_name,
-            "result": "ERROR",
+            "parameters": common_parameters(test),
+            "vuln": "ERROR",
+            "result": "소유자의 정상 기준 요청이 성공하지 않아 권한 비교를 중단했습니다.",
             "severity": "INFO",
-            "reason": "소유자의 정상 기준 요청이 성공하지 않아 권한 비교를 중단했습니다.",
-            "discovery": discovery_result,
-            "owner_observation": owner.public_dict(),
-            "checks": [],
+            "details": {
+                "owner_account": owner_name,
+                "attacker_account": attacker_name,
+                "discovery": discovery_result,
+                "owner_observation": owner.public_dict(),
+                "checks": [],
+            },
         }
 
     attacker = observe_request(url, method, attacker_context, timeout, headers)
@@ -418,17 +448,21 @@ def scan_test(
     else:
         result = "PASS"
     return {
+        "scanner_id": "authz",
         "name": test["name"],
+        "url": common_url(config, test),
         "method": method,
-        "path": test["path"],
-        "owner_account": owner_name,
-        "attacker_account": attacker_name,
-        "result": result,
+        "parameters": common_parameters(test),
+        "vuln": result,
+        "result": highest["reason"],
         "severity": highest["severity"],
-        "reason": highest["reason"],
-        "discovery": discovery_result,
-        "owner_observation": owner.public_dict(),
-        "checks": checks,
+        "details": {
+            "owner_account": owner_name,
+            "attacker_account": attacker_name,
+            "discovery": discovery_result,
+            "owner_observation": owner.public_dict(),
+            "checks": checks,
+        },
     }
 
 
@@ -447,14 +481,14 @@ def run_scan(config: dict[str, Any], timeout: float = 5.0) -> dict[str, Any]:
     ]
     summary = {
         "total": len(findings),
-        "vulnerable": sum(item["result"] == "VULNERABLE" for item in findings),
-        "pass": sum(item["result"] == "PASS" for item in findings),
-        "review": sum(item["result"] == "REVIEW" for item in findings),
-        "error": sum(item["result"] == "ERROR" for item in findings),
+        "vulnerable": sum(item["vuln"] == "VULNERABLE" for item in findings),
+        "pass": sum(item["vuln"] == "PASS" for item in findings),
+        "review": sum(item["vuln"] == "REVIEW" for item in findings),
+        "error": sum(item["vuln"] == "ERROR" for item in findings),
     }
     return {
         "tool": "AuthZScanner",
-        "version": "2.0.0",
+        "version": "3.0.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "target": config["base_url"],
         "authentication_type": authentication_type(authentication),

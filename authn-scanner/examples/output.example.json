@@ -1,0 +1,7 @@
+{
+  "url": "http://127.0.0.1:8080/admin",
+  "method": "GET",
+  "parameters": [],
+  "vuln": "VULNERABLE",
+  "result": "유효하지 않은 인증 상태에서 보호 내용이 반환되었습니다."
+}

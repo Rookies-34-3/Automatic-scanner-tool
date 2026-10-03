@@ -66,6 +66,12 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(result["summary"]["vulnerable"], 1)
         self.assertEqual(result["summary"]["pass"], 1)
         self.assertEqual(result["findings"][0]["severity"], "HIGH")
+        self.assertEqual(result["findings"][0]["vuln"], "VULNERABLE")
+        self.assertTrue(
+            {"url", "method", "parameters", "vuln", "result"}.issubset(
+                result["findings"][0]
+            )
+        )
 
     def test_rejects_state_changing_method(self):
         config = self.config()
@@ -76,6 +82,7 @@ class ScannerTests(unittest.TestCase):
     def test_result_does_not_contain_valid_token(self):
         result = run_scan(self.config())
         self.assertNotIn("valid-token", json.dumps(result))
+        self.assertNotIn("session_cookie", json.dumps(result))
 
     def test_jwt_cases_are_added_only_for_jwt_shape(self):
         self.assertEqual(jwt_test_cases("opaque-token"), [])
