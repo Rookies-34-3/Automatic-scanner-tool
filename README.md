@@ -1,8 +1,68 @@
-# fileio_scanner — 파일 업로드/다운로드 취약점 블랙박스 스캐너 (JSON 출력)
+# fileio_scanner — 파일 업로드/다운로드 취약점 블랙박스 스캐너
 
-허가된 대상에만 사용하세요. **설정 JSON 하나**만 두면 어떤 사이트에도 적용됩니다.
-사이트 주소·계정·기능 경로만 적으면, 나머지(필드명·확장자·다운로드 패턴 등)는
-**코드가 자동으로 정찰(recon)해서 채웁니다.** 결과는 **JSON finding 배열**로 출력됩니다.
+허가된 대상에만 사용하세요. 파일 업로드/다운로드 취약점을 블랙박스로 점검하고
+결과를 ROOKIESCAN 공통 출력 스키마(JSON)로 냅니다.
+
+---
+
+## 0. 통합 제출 정보 (ROOKIESCAN)
+
+| # | 항목 | 내용 |
+|---|---|---|
+| 1 | 스캐너 소스 폴더 | `fileio_scanner/` (독립 실행 가능한 Python 패키지) |
+| 2 | 실행 명령어 | `python -m fileio_scanner.pipeline --config config.example.json --output results/findings.json --authorized --no-fail-on-findings` |
+| 3 | 설정 파일·점검 엔드포인트 | `config.example.json` (endpoints: 업로드 POST, 다운로드 GET `/download/{id}`) |
+| 4 | 필요한 환경변수 | `ROOKIESCAN_PASSWORD` (실습 계정 비밀번호) |
+| 5 | 결과 JSON 예시 | 아래 "결과 JSON 예시" 참고 (`finding-output.schema.json` 준수) |
+| 6 | 의존성 | `requirements.txt` (`requests`) |
+| 7 | 단독 테스트 | `python -m pytest tests/` 또는 아래 "단독 테스트" 절. **스키마 위반 0 확인 완료** |
+
+> 비밀번호·세션쿠키·API 키는 소스/JSON에 저장하지 않습니다. 환경변수 이름만 문서에 적습니다.
+
+### 실행 (PowerShell)
+```powershell
+$env:ROOKIESCAN_PASSWORD="실습비번"
+python -m fileio_scanner.pipeline --config config.example.json --output results/findings.json --authorized --no-fail-on-findings
+```
+> 옵션 이름이 달라도 통합 담당자가 어댑터에서 변환합니다. runner.py `ADAPTERS` 등록 예:
+> ```python
+> "fileio": { "directory": "<폴더명>", "endpoint_key": "endpoints",
+>             "output_argument": "--output", "module": "fileio_scanner.pipeline",
+>             "accepted_exit_codes": {0, 2} }
+> ```
+
+### 입력(config.example.json) 핵심
+- `base_url`: 대상(통합 시 runner 가 주입)
+- `accounts`: victim/attacker/admin, 비밀번호는 `password_env: "ROOKIESCAN_PASSWORD"`
+- `endpoints`: 공통 입력(`url`/`method`/`parameters`) 또는 runner native(`path`/`method`) 둘 다 수용
+
+### 결과 JSON 예시 (공통 출력 스키마)
+결과는 finding 객체의 **배열**입니다.
+```json
+[
+  {
+    "scanner_id": "fileio",
+    "name": "IDOR - Enumeration (Download)",
+    "url": "http://127.0.0.1:8080/download/{id}",
+    "method": "GET",
+    "parameters": [ { "name": "id", "location": "path" } ],
+    "result": "REVIEW",
+    "severity": "MEDIUM",
+    "reason": "순차 ID 열거로 N개 접근 가능 - 예측가능 ID + 인가 부재(구조적 약점)",
+    "details": { "scan_id": "SCAN-001", "accessible_count": 98, "structural_weakness": "..." }
+  }
+]
+```
+`result` 값: `VULNERABLE` / `PASS`(안전) / `REVIEW`(수동확인) / `ERROR`.
+
+### 단독 테스트 (성공 확인됨)
+```powershell
+$env:ROOKIESCAN_PASSWORD="Lab1234!"
+python -m fileio_scanner.pipeline --config config.example.json --output results/findings.json --authorized --no-fail-on-findings
+```
+- 대상(로컬 Docker `127.0.0.1:8080`)이 떠 있어야 함
+- 출력 JSON이 공통 스키마(9필드)를 100% 준수 → **스키마 위반 0 확인**
+- 자동 검증: `python -m pytest tests/`
 
 ---
 

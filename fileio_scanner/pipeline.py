@@ -183,6 +183,8 @@ def main():
     with open(args.config, encoding="utf-8-sig") as fp:
         native = json.load(fp)
     findings = run(native)
+    out_dir = os.path.dirname(os.path.abspath(args.output))
+    os.makedirs(out_dir, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as fp:
         json.dump(findings, fp, ensure_ascii=False, indent=2)
     print(f"[fileio] 공통 출력 {len(findings)}건 저장: {args.output}")
