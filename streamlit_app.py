@@ -179,17 +179,32 @@ else:
     if "analysis_result" in st.session_state:
         analysis_title.subheader("분석 보고서")
         report = st.session_state["analysis_result"]
+        tool_results = report["tool_results"]
+        verdict_counts = {
+            verdict: sum(result.get("vuln") == verdict for result in tool_results)
+            for verdict in ("VULNERABLE", "PASS", "REVIEW", "ERROR")
+        }
+        scanner_ids = sorted({result["scanner_id"] for result in tool_results})
         st.caption(f"모델: {report['model']} · 분석 대상 {report['group_count']}개 그룹 "
-                   f"· 스캐너 호출 {report['tool_call_count']}회 · 결과 {len(report['tool_results'])}건")
+                   f"· 스캐너 호출 {report['tool_call_count']}회 · 결과 {len(tool_results)}건")
+        st.markdown(
+            f"**실제 판정 집계:** 취약 {verdict_counts['VULNERABLE']}건 · "
+            f"통과 {verdict_counts['PASS']}건 · 검토 필요 {verdict_counts['REVIEW']}건 · "
+            f"오류 {verdict_counts['ERROR']}건"
+        )
+        st.caption(f"실행 스캐너 {len(scanner_ids)}종: {', '.join(scanner_ids)}")
         if report.get("json_path"):
             st.caption(f"최종 JSON 파일: output/{Path(report['json_path']).name}")
+        st.markdown("#### AI 해석")
         st.markdown(report["summary"])
+        st.markdown("#### 전체 스캐너 결과")
+        st.caption("표 안쪽을 스크롤하면 모든 결과를 확인할 수 있습니다.")
         st.dataframe([{
             "메서드": result["method"], "URL": result["url"],
             "입력 필드": ", ".join(f"{p['name']} ({p['location']})" for p in result["parameters"]) or "-",
             "스캐너": result["scanner_id"], "판정": result["vuln"],
             "위험도": result["severity"], "근거": result["result"],
-        } for result in report["tool_results"]], hide_index=True)
+        } for result in tool_results], hide_index=True)
 
     # AI 보고서에서 돌아가면 저장된 Sink 탐색 보고서를 보여준다.
     with st.container(horizontal=True, horizontal_alignment="distribute"):
