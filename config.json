@@ -1,0 +1,17 @@
+{
+  "base_url": "http://127.0.0.1:8080",
+  "login_path": "/login",
+  "accounts": {
+    "victim":   { "userId": "student1", "password_env": "ROOKIESCAN_PASSWORD" },
+    "attacker": { "userId": "student2", "password_env": "ROOKIESCAN_PASSWORD" },
+    "admin":    { "userId": "admin",    "password_env": "ROOKIESCAN_PASSWORD" }
+  },
+  "endpoints": [
+    { "url": "http://127.0.0.1:8080/my-class/board/write/qna", "method": "POST",
+      "parameters": [ { "name": "file", "location": "body" } ] },
+    { "url": "http://127.0.0.1:8080/download/{id}", "method": "GET",
+      "parameters": [ { "name": "id", "location": "path" } ] }
+  ],
+  "id_range": [1, 200],
+  "ai": { "enabled": false }
+}
