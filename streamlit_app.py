@@ -19,6 +19,10 @@ st.markdown("<style>.stMainBlockContainer {padding-top: 3rem;}</style>", unsafe_
 # target_url이랑 session_cookie받아오기
 st.title("ROOKIESCAN")
 
+# 실행 중 코드를 바꿨을 때 이전 형식의 AI 결과는 다시 분석할 수 있게 비운다.
+if "analysis_result" in st.session_state and "results" not in st.session_state["analysis_result"]:
+    st.session_state.pop("analysis_result")
+
 # show_report와 show_analysis 값으로 입력·Sink 보고서·AI 보고서 화면을 전환
 if not st.session_state.get("show_report", False):
     # 제목과 입력 폼 사이에 작은 간격
@@ -64,35 +68,42 @@ if not st.session_state.get("show_report", False):
 elif not st.session_state.get("show_analysis", False):
     sinks = st.session_state["sinks"]
     groups = st.session_state["openai_sinks"]["groups"]
-    st.subheader("Sink 탐색 보고서")
-    st.write("대상 URL:", st.session_state["scan_target_url"])
-    st.caption(f"발견한 엔드포인트 {len(sinks)}개 → OpenAI 전달 그룹 {len(groups)}개")
-    if "sink_json_path" in st.session_state:
-        st.caption(f"JSON 파일: output/{Path(st.session_state['sink_json_path']).name}")
-    # OpenAI 전달 그룹을 한 행씩 보여주는 보고서 표
-    rows = [{
-        "메서드": group["method"],
-        "경로": group["path_template"],
-        "입력 필드": ", ".join(sorted({f"{p['name']} ({p['location']})"
-                                    for variant in group["request_variants"] for p in variant["parameters"]})) or "-",
-        "후보 tool": ", ".join(group["candidate_tools"]) or "-",
-        "발견 수": group["discovered_count"],
-        "대표 URL": "\n".join(dict.fromkeys(variant["sample_url"] for variant in group["request_variants"])),
-    } for group in groups]
-    st.dataframe(rows, hide_index=True)
+    # 다음 화면의 분석이 오래 걸려도 이전 보고서가 남지 않도록 전체 영역을 비운다.
+    report_panel = st.empty()
+    with report_panel.container():
+        st.subheader("Sink 탐색 보고서")
+        st.write("대상 URL:", st.session_state["scan_target_url"])
+        st.caption(f"발견한 엔드포인트 {len(sinks)}개 → OpenAI 전달 그룹 {len(groups)}개")
+        if "sink_json_path" in st.session_state:
+            st.caption(f"JSON 파일: output/{Path(st.session_state['sink_json_path']).name}")
+        # OpenAI 전달 그룹을 한 행씩 보여주는 보고서 표
+        rows = [{
+            "메서드": group["method"],
+            "경로": group["path_template"],
+            "입력 필드": ", ".join(sorted({f"{p['name']} ({p['location']})"
+                                        for variant in group["request_variants"] for p in variant["parameters"]})) or "-",
+            "후보 tool": ", ".join(group["candidate_tools"]) or "-",
+            "발견 수": group["discovered_count"],
+            "대표 URL": "\n".join(dict.fromkeys(variant["sample_url"] for variant in group["request_variants"])),
+        } for group in groups]
+        st.dataframe(rows, hide_index=True)
 
-    # 뒤로가기는 왼쪽, 취약점 분석하기는 오른쪽 끝에 배치
-    with st.container(horizontal=True, horizontal_alignment="distribute"):
-        if st.button("뒤로가기"):
-            st.session_state["show_report"] = False
-            st.rerun()
-        if st.button("취약점 분석하기", disabled=not groups):
-            st.session_state["show_analysis"] = True
-            st.session_state["analysis_pending"] = "analysis_result" not in st.session_state
-            st.rerun()
+        # 뒤로가기는 왼쪽, 취약점 분석하기는 오른쪽 끝에 배치
+        with st.container(horizontal=True, horizontal_alignment="distribute"):
+            if st.button("뒤로가기"):
+                st.session_state["show_report"] = False
+                report_panel.empty()
+                st.rerun()
+            if st.button("취약점 분석하기", disabled=not groups):
+                st.session_state["show_analysis"] = True
+                st.session_state["analysis_pending"] = "analysis_result" not in st.session_state
+                report_panel.empty()
+                st.rerun()
 
 else:
-    st.subheader("AI 분석 보고서")
+    # 분석 중 제목과 완료 후 보고서 제목을 같은 자리에서 바꾼다.
+    analysis_title = st.empty()
+    analysis_title.subheader("분석 보고서" if "analysis_result" in st.session_state else "취약점 분석 중")
     st.write("대상 URL:", st.session_state["scan_target_url"])
     # AI 요청과 임시 tool 처리의 진행 상태를 표시
     if st.session_state.pop("analysis_pending", False):
@@ -105,35 +116,49 @@ else:
                 else:
                     openai_sinks = st.session_state["openai_sinks"]
                 report = reload(openai_module).analyze_sinks(
-                    openai_sinks, on_progress=status.write,
+                    openai_sinks, on_progress=lambda message: status.update(label=message),
+                    source_json=json_path, target_url=st.session_state["scan_target_url"],
                 )
             except (ValueError, OSError, OpenAIError) as exc:
                 status.update(label="AI 분석 실패", state="error")
-                message = str(exc) if isinstance(exc, ValueError) else (
-                    "저장된 JSON 파일을 읽을 수 없습니다. Sink 찾기를 다시 실행하세요."
-                    if isinstance(exc, OSError) else
-                    f"OpenAI 요청에 실패했습니다 ({type(exc).__name__}). "
-                    "API 키, 모델 권한과 연결 상태를 확인하세요."
-                )
+                if isinstance(exc, ValueError):
+                    message = str(exc)
+                elif isinstance(exc, OSError):
+                    message = "JSON 파일을 읽거나 저장할 수 없습니다. output 폴더와 파일을 확인하세요."
+                else:
+                    message = (f"OpenAI 요청에 실패했습니다 ({type(exc).__name__}). "
+                               "API 키, 모델 권한과 연결 상태를 확인하세요.")
                 st.session_state["analysis_error"] = message
             else:
                 st.session_state["analysis_result"] = report
                 st.session_state.pop("analysis_error", None)
-                status.update(label="AI 분석 완료", state="complete", expanded=False)
+                has_errors = report["status"] == "completed_with_errors"
+                status.update(label="AI 분석 완료 · 일부 항목 오류" if has_errors else "AI 분석 완료",
+                              state="error" if has_errors else "complete", expanded=False)
 
     if "analysis_error" in st.session_state:
+        analysis_title.subheader("취약점 분석 실패")
         st.error(st.session_state["analysis_error"])
     # 저장된 결과를 보여주므로 화면을 다시 그려도 API를 재호출하지 않는다.
     if "analysis_result" in st.session_state:
+        analysis_title.subheader("분석 보고서")
         report = st.session_state["analysis_result"]
+        results = report["results"]
+        tool_count = sum(bool(item["result"] and item["result"].get("tool")) for item in results)
         st.caption(f"모델: {report['model']} · 분석 대상 {report['group_count']}개 그룹 "
-                   f"· 임시 tool 호출 {len(report['tool_results'])}회 · 실제 검증 미수행")
+                   f"· 처리 {report['completed_count']} / {report['task_count']}개 "
+                   f"· 임시 tool 호출 {tool_count}회 · 실제 검증 미수행")
+        st.caption(f"분석 결과 JSON: output/{report['result_file']}")
         st.markdown(report["summary"])
+        verdicts = {"inconclusive": "미검증", "error": "오류", "skipped": "건너뜀", "pending": "대기"}
         st.dataframe([{
             "메서드": result["method"], "URL": result["url"],
             "입력 필드": ", ".join(f"{p['name']} ({p['location']})" for p in result["parameters"]) or "-",
-            "호출 함수": result["tool"], "처리 상태": result["message"], "검증 상태": "미검증",
-        } for result in report["tool_results"]], hide_index=True)
+            "취약점 후보": result["vulnerability_type"] or "-",
+            "판정": verdicts.get(result["verdict"], result["verdict"]),
+            "결과": (result["result"] or {}).get("error") or (result["result"] or {}).get("ai_summary")
+                    or (result["result"] or {}).get("message", ""),
+        } for result in results], hide_index=True)
 
     # AI 보고서에서 돌아가면 저장된 Sink 탐색 보고서를 보여준다.
     with st.container(horizontal=True, horizontal_alignment="distribute"):

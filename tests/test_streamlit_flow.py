@@ -29,21 +29,28 @@ def response(body="", status=200):
 
 
 def scan(app=None):
-    app = app or AppTest.from_file(str(APP)).run()
+    app = app or AppTest.from_file(str(APP), default_timeout=10).run()
     app.text_input[0].set_value("http://127.0.0.1:8080/")
     app.text_input[1].set_value("test-cookie")
     return app.button[0].click().run()
 
 
-def analysis_report(payload, on_progress=None):
+def analysis_report(payload, on_progress=None, source_json=None, target_url=None):
     if on_progress:
         on_progress("임시 모듈 처리 완료")
     return {
         "model": "gpt-6.1-sol", "group_count": len(payload["groups"]),
+        "task_count": 1, "completed_count": 1, "status": "completed",
+        "result_file": "analysis-results-test.json",
         "summary": "입력 지점 후보를 검토했습니다. 실제 검증은 미수행입니다.",
-        "tool_results": [analyze_endpoint_stub("http://127.0.0.1:8080/search", "GET", [
-            {"name": "content", "location": "query"},
-        ])],
+        "results": [{
+            "url": "http://127.0.0.1:8080/search", "method": "GET", "parameters": [
+                {"name": "content", "location": "query"},
+            ], "vulnerability_type": "sqli", "verdict": "inconclusive",
+            "result": analyze_endpoint_stub("http://127.0.0.1:8080/search", "GET", [
+                {"name": "content", "location": "query"},
+            ], "sqli"),
+        }],
     }
 
 
@@ -74,6 +81,25 @@ class StreamlitFlowTest(unittest.TestCase):
         self.assertNotEqual(first, second)
         self.assertTrue(first.exists())
         self.assertTrue(second.exists())
+
+    def test_aws_https_target_is_allowed_and_crawl_stays_on_same_origin(self):
+        requested = []
+
+        def open_page(request, timeout):
+            requested.append(request.full_url)
+            if urlsplit(request.full_url).path == "/":
+                return response('<a href="/search">Search</a><a href="https://other.example/outside">Outside</a>')
+            return response("<title>Page</title>")
+
+        opener = SimpleNamespace(open=open_page)
+        with patch.object(sink_finder, "build_opener", return_value=opener):
+            results = sink_finder.find_sinks(
+                "https://rookiescan.example/", "session=test", seed_paths=[],
+            )
+
+        self.assertTrue(results)
+        self.assertIn("https://rookiescan.example/search", requested)
+        self.assertTrue(all(urlsplit(url).hostname == "rookiescan.example" for url in requested))
 
     def test_reloads_stale_finder_and_runs_real_collection(self):
         pages = {
@@ -114,8 +140,9 @@ class StreamlitFlowTest(unittest.TestCase):
         self.assertEqual(len(app.session_state["sinks"]), 6)
         self.assertEqual(len(app.session_state["openai_sinks"]["groups"]), 5)
         self.assertEqual(len(app.dataframe), 1)
-        self.assertEqual([heading.value for heading in app.subheader], ["AI 분석 보고서"])
-        self.assertEqual(app.session_state["analysis_result"]["tool_results"][0]["verified"], False)
+        self.assertEqual([heading.value for heading in app.subheader], ["분석 보고서"])
+        self.assertEqual(app.session_state["analysis_result"]["results"][0]["result"]["verified"], False)
+        self.assertTrue(any("분석 결과 JSON:" in item.value for item in app.caption))
         self.assertTrue(any("실제 검증 미수행" in item.value for item in app.caption))
 
     def test_none_is_visible_and_preserves_previous_results(self):
@@ -156,7 +183,7 @@ class StreamlitFlowTest(unittest.TestCase):
                 self.assertEqual([heading.value for heading in app.subheader], ["Sink 탐색 보고서"])
                 self.assertEqual(len(app.dataframe), 1)
                 app.button[1].click().run()
-                self.assertEqual([heading.value for heading in app.subheader], ["AI 분석 보고서"])
+                self.assertEqual([heading.value for heading in app.subheader], ["분석 보고서"])
                 analyze.assert_called_once()
             self.assertIn("analysis_result", app.session_state)
             count = len(requests)
@@ -186,7 +213,7 @@ class StreamlitFlowTest(unittest.TestCase):
         self.assertIn("OpenAI 요청에 실패", app.error[0].value)
         self.assertNotIn("private-test-key", app.error[0].value)
         self.assertNotIn("analysis_result", app.session_state)
-        self.assertEqual([heading.value for heading in app.subheader], ["AI 분석 보고서"])
+        self.assertEqual([heading.value for heading in app.subheader], ["취약점 분석 실패"])
         self.assertEqual([button.label for button in app.button], ["뒤로가기", "다시 시도"])
         with patch("importlib.reload", side_effect=lambda module: module), \
                 patch.object(openai_module, "analyze_sinks", side_effect=analysis_report) as retry:

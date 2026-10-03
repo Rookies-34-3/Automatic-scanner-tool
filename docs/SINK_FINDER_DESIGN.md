@@ -22,8 +22,9 @@ openai_module이 알맞은 검사 tool 호출
 
 ## 두 가지 탐색 방식
 
-현재 대상은 `127.0.0.1` 또는 `localhost`의 로컬 Docker 서비스로 제한한다. endpoint는
-크롤링과 숨겨진 경로 wordlist 요청을 서로 구분해 수집한다.
+사용자가 점검 권한을 가진 AWS 배포 웹사이트를 `http` 또는 `https` URL로 입력한다.
+크롤러는 입력 URL과 동일한 출처 안에서만 이동하며, 크롤링과 숨겨진 경로 wordlist 요청을
+서로 구분해 수집한다.
 
 ### 로그인 크롤러
 
@@ -80,7 +81,7 @@ find_sinks(
 
 | 입력 | 용도 |
 | --- | --- |
-| `target_url` | `http://127.0.0.1:8080/login`에서 기준 출처 `http://127.0.0.1:8080`을 얻는다. |
+| `target_url` | `https://app.example.com/login`에서 기준 출처 `https://app.example.com`을 얻는다. |
 | `session_cookie` | 모든 크롤링 요청에 적용하는 로그인 세션 쿠키다. |
 | `seed_paths` | 숨겨진 endpoint wordlist다. 기본값은 `/admin`, `/uploads/` 두 개다. |
 
@@ -93,8 +94,8 @@ find_sinks(
 입력 URL의 기준 출처를 구한 뒤 다음 URL만 크롤러 방문 대기열에 넣는다.
 
 ```text
-http://127.0.0.1:8080/
-http://127.0.0.1:8080/login
+https://app.example.com/
+https://app.example.com/login
 ```
 
 로그인 쿠키를 적용하고 redirect를 따라가면 로그인 후 첫 화면과 메뉴를 수집할 수 있다.
@@ -103,8 +104,8 @@ http://127.0.0.1:8080/login
 `seed_paths`는 일반 크롤링 대기열과 별도로 기준 출처에 결합해 직접 요청한다.
 
 ```text
-http://127.0.0.1:8080/admin
-http://127.0.0.1:8080/uploads/
+https://app.example.com/admin
+https://app.example.com/uploads/
 ```
 
 응답이 존재하면 endpoint 결과에 추가한다. 반환된 HTML에 링크나 form이 있으면 그때 해당
@@ -311,7 +312,7 @@ form enctype=multipart/form-data
 ```json
 [
   {
-    "url": "http://127.0.0.1:8080/my-class/board/qna",
+    "url": "https://app.example.com/my-class/board/qna",
     "method": "GET",
     "parameters": [
       {

@@ -4,9 +4,7 @@
 구현은 다음 단계에서 추가한다.
 """
 
-import ipaddress
 import re
-import socket
 from collections import deque
 from html.parser import HTMLParser
 from http.cookiejar import Cookie, CookieJar
@@ -244,21 +242,19 @@ def _javascript_endpoints(script, page):
 
 
 def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] | None = None) -> list[dict]:
-    """로그인 세션을 사용해 로컬 웹사이트를 순회하고 엔드포인트와 Sink 후보를 수집
+    """로그인 세션을 사용해 대상 웹사이트를 순회하고 엔드포인트와 Sink 후보를 수집
 
     session_cookie는 쿠키 값만 또는 '쿠키명=값; 다른쿠키명=값' 형식이다. seed_paths의 기본값은
     WORDLIST 두 항목이며, 빈 목록을 전달하면 숨겨진 경로 요청을 생략한다.
     URL·쿠키 입력 오류와 확인된 로그인 리다이렉트는 ValueError로 알린다.
     """
-    target = urlsplit(target_url.strip())
-    if target.scheme not in {"http", "https"} or target.hostname not in {"localhost", "127.0.0.1", "::1"} or target.username or target.password:
-        raise ValueError("현재 모의 도구는 http(s)://localhost 또는 127.0.0.1의 로컬 대상만 지원합니다.")
     try:
-        addresses = socket.getaddrinfo(target.hostname, target.port or 80, type=socket.SOCK_STREAM)
-        if not all(ipaddress.ip_address(address[4][0]).is_loopback for address in addresses):
-            raise ValueError("로컬 호스트가 loopback 주소로 연결되지 않습니다.")
-    except OSError as exc:
-        raise ValueError("로컬 호스트 주소를 확인할 수 없습니다.") from exc
+        target = urlsplit(target_url.strip())
+        target.port  # 잘못된 포트 형식을 확인한다.
+    except ValueError as exc:
+        raise ValueError("대상 URL 형식이 올바르지 않습니다.") from exc
+    if target.scheme not in {"http", "https"} or not target.hostname or target.username or target.password:
+        raise ValueError("대상 URL은 호스트를 포함한 http 또는 https 주소로 입력하세요.")
     raw_cookie = session_cookie.strip()
     if raw_cookie.lower().startswith("cookie:"):
         raw_cookie = raw_cookie[7:].strip()

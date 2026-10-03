@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 
-def save_sink_summary(summary: dict, target_url: str) -> Path:
+def save_sink_summary(summary: dict, target_url: str, prefix: str = "openai-sinks") -> Path:
     """Sink 집계 결과를 호스트별 고유 JSON 파일로 저장한다."""
     parts = urlsplit(target_url)
     host = re.sub(r"[^A-Za-z0-9.-]", "-", (parts.hostname or "target").encode("idna").decode("ascii"))
@@ -21,7 +21,15 @@ def save_sink_summary(summary: dict, target_url: str) -> Path:
     output_dir = Path(__file__).resolve().parent / "output"
     output_dir.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    path = output_dir / f"openai-sinks-{host}-{stamp}-{uuid4().hex[:8]}.json"
+    path = output_dir / f"{prefix}-{host}-{stamp}-{uuid4().hex[:8]}.json"
     with path.open("x", encoding="utf-8") as output:
         json.dump(summary, output, ensure_ascii=False, separators=(",", ":"))
     return path
+
+
+def update_analysis_report(report: dict, path: Path) -> None:
+    """현재 실행의 결과 파일을 갱신한다. 쓰기가 끝나야 이전 파일을 교체한다."""
+    temporary = path.with_suffix(".tmp")
+    with temporary.open("w", encoding="utf-8") as output:
+        json.dump(report, output, ensure_ascii=False, separators=(",", ":"))
+    temporary.replace(path)
