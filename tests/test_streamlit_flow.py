@@ -132,6 +132,12 @@ class StreamlitFlowTest(unittest.TestCase):
                     app.button[1].click().run()
                     app.run()
                     analyze.assert_called_once()
+                    self.assertEqual(analyze.call_args.kwargs["scanner_options"], {
+                        "authz_attacker_cookie": "",
+                        "lab_password": "",
+                        "ssrf_verifier_payload_url": "",
+                        "ssrf_verifier_status_url": "",
+                    })
                     self.assertEqual(analyze.call_args.args[0]["source_marker"], "loaded_from_json")
                     rerun_finder.assert_not_called()
             stale_finder.assert_not_called()

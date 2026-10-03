@@ -36,6 +36,29 @@ if not st.session_state.get("show_report", False):
     with panel.container():
         target_url = st.text_input("대상 URL", value=saved_inputs[0])
         session_cookie = st.text_input("세션 쿠키", value=saved_inputs[1], type="password")
+        with st.expander("선택 설정 (교차 계정·파일 검사)"):
+            authz_attacker_cookie = st.text_input(
+                "다른 사용자 세션 쿠키",
+                value=st.session_state.get("authz_attacker_cookie", ""),
+                type="password",
+                help="IDOR/BOLA 교차 계정 검사에만 사용하며 AI와 결과 JSON에는 전달하지 않습니다.",
+            )
+            lab_password = st.text_input(
+                "실습 계정 공통 비밀번호",
+                value=st.session_state.get("lab_password", ""),
+                type="password",
+                help="파일 업로드·다운로드 계정 검사에만 메모리에서 사용하며 저장하지 않습니다.",
+            )
+            ssrf_verifier_payload_url = st.text_input(
+                "SSRF 검증 요청 URL (선택)",
+                value=st.session_state.get("ssrf_verifier_payload_url", ""),
+                help="예: https://verifier.example/check — 외부에서 접근 가능한 승인된 검증 서버가 필요합니다.",
+            )
+            ssrf_verifier_status_url = st.text_input(
+                "SSRF 검증 상태 URL (선택)",
+                value=st.session_state.get("ssrf_verifier_status_url", ""),
+                help="예: https://verifier.example/status — 요청 ID를 뒤에 붙여 조회합니다.",
+            )
         find_clicked = st.button("Sink 찾기")
         if "scan_error" in st.session_state:
             st.error(st.session_state.pop("scan_error"))
@@ -43,6 +66,10 @@ if not st.session_state.get("show_report", False):
     #이제 sink 찾아야함 sink_finder
     if find_clicked:
         st.session_state["scan_inputs"] = (target_url, session_cookie)
+        st.session_state["authz_attacker_cookie"] = authz_attacker_cookie
+        st.session_state["lab_password"] = lab_password
+        st.session_state["ssrf_verifier_payload_url"] = ssrf_verifier_payload_url
+        st.session_state["ssrf_verifier_status_url"] = ssrf_verifier_status_url
         # 입력 폼을 지우고 탐색이 끝날 때까지 로딩 표시
         panel.empty()
         try:
@@ -116,6 +143,12 @@ else:
                 report = reload(openai_module).analyze_sinks(
                     openai_sinks,
                     session_cookie=st.session_state.get("scan_inputs", ("", ""))[1],
+                    scanner_options={
+                        "authz_attacker_cookie": st.session_state.get("authz_attacker_cookie", ""),
+                        "lab_password": st.session_state.get("lab_password", ""),
+                        "ssrf_verifier_payload_url": st.session_state.get("ssrf_verifier_payload_url", ""),
+                        "ssrf_verifier_status_url": st.session_state.get("ssrf_verifier_status_url", ""),
+                    },
                     on_progress=lambda message: status.update(label=message),
                 )
                 final_report = report_writer.build_scan_report(

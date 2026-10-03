@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import report_writer
-from module.contracts import normalize_finding, public_parameters
+from module.contracts import cookie_dict, cookie_header, normalize_finding, public_parameters
 from module import scanner_tools
 from module.analysis_stub import TOOL_SCHEMA as STUB_TOOL_SCHEMA, analyze_endpoint_stub
 from module.tool_registry import SCANNERS, TOOL_SCHEMAS, execute_tool
@@ -52,6 +52,29 @@ class ScannerIntegrationTest(unittest.TestCase):
     def test_parameter_values_are_removed_from_public_output(self):
         parameters = [{"name": "keyword", "location": "query", "value": "private"}]
         self.assertEqual(public_parameters(parameters), [{"name": "keyword", "location": "query"}])
+
+    def test_value_only_cookie_uses_the_lab_session_cookie_name(self):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(cookie_dict("opaque-session-value"), {
+                "sslc_lab_session": "opaque-session-value",
+            })
+            self.assertEqual(
+                cookie_header("opaque-session-value"),
+                "sslc_lab_session=opaque-session-value",
+            )
+
+    def test_sqli_receives_value_only_session_cookie(self):
+        native = {
+            "url": ARGS["url"], "method": "GET", "parameters": "content",
+            "vuln": "SAFE", "result": {"evidence": "미탐지"}, "severity": "NONE",
+        }
+        with patch.object(scanner_tools, "run_sqli_native", return_value=native) as run:
+            scanner_tools.scan_sqli(
+                ARGS["url"], "GET", ARGS["parameters"], "opaque-session-value",
+            )
+        self.assertEqual(run.call_args.args[3], {
+            "sslc_lab_session": "opaque-session-value",
+        })
 
     def test_aliases_are_normalized_to_four_vulnerability_states(self):
         finding = normalize_finding(
@@ -141,6 +164,54 @@ class ScannerIntegrationTest(unittest.TestCase):
             authz = scanner_tools.scan_authz(ARGS["url"], "GET", ARGS["parameters"])
         self.assertEqual(fileio[0]["vuln"], "REVIEW")
         self.assertEqual(authz[0]["vuln"], "REVIEW")
+
+    def test_fileio_can_use_in_memory_lab_password(self):
+        config = {
+            "accounts": {
+                "victim": {"userId": "student1", "password_env": "PRIVATE"},
+            }
+        }
+        raw = [{
+            "result": "SAFE", "reason": "차단됨", "url": ARGS["url"],
+            "method": "GET", "parameters": [], "severity": "NONE",
+        }]
+        with patch.object(scanner_tools, "_load_example_config", return_value=config), \
+                patch.object(scanner_tools, "run_fileio_native", return_value=raw) as run:
+            findings = scanner_tools.scan_fileio(
+                ARGS["url"], "GET", ARGS["parameters"],
+                options={"lab_password": "runtime-secret"},
+            )
+        account = run.call_args.args[0]["accounts"]["victim"]
+        self.assertEqual(account["password"], "runtime-secret")
+        self.assertNotIn("password_env", account)
+        self.assertNotIn("runtime-secret", json.dumps(findings, ensure_ascii=False))
+
+    def test_authz_compares_two_runtime_sessions_without_storing_cookies(self):
+        def http_response(body, status=200, location=""):
+            return SimpleNamespace(
+                status_code=status,
+                text=body,
+                content=body.encode("utf-8"),
+                headers={"Location": location} if location else {},
+            )
+
+        protected = "private-profile:" + "x" * 120
+        with patch.object(scanner_tools, "_request", side_effect=[
+            http_response(protected),
+            http_response(protected),
+            http_response("", 302, "/login"),
+        ]):
+            findings = scanner_tools.scan_authz(
+                "http://127.0.0.1:8080/api/profiles/1",
+                "GET",
+                [{"name": "id", "location": "path"}],
+                "owner-cookie",
+                {"authz_attacker_cookie": "attacker-cookie"},
+            )
+        self.assertEqual(findings[0]["vuln"], "VULNERABLE")
+        serialized = json.dumps(findings, ensure_ascii=False)
+        self.assertNotIn("owner-cookie", serialized)
+        self.assertNotIn("attacker-cookie", serialized)
 
     def test_final_report_has_common_and_dashboard_views_and_redacts_secrets(self):
         analysis = {

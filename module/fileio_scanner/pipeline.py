@@ -53,6 +53,11 @@ UPLOAD_HINT = ("Upload", "Extension", "MIME", "Magic", "Stored XSS", "SVG",
 
 def _password(account: dict) -> str:
     """환경변수에서만 비밀번호를 읽어 설정/결과 파일 노출을 방지한다."""
+    # The integrated UI may pass a password in memory.  It is never written to
+    # the config/report and is preferred only for this scanner invocation.
+    direct = account.get("password")
+    if direct:
+        return str(direct)
     env = account.get("password_env")
     return os.environ.get(env, "") if env else ""
 

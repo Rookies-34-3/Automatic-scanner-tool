@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 
@@ -76,8 +77,19 @@ def cookie_dict(session_cookie: Any) -> dict[str, str]:
         return dict(session_cookie)
     if not isinstance(session_cookie, str):
         raise ValueError("session_cookie는 문자열 또는 객체여야 합니다.")
+    raw_cookie = session_cookie.strip()
+    if not raw_cookie:
+        return {}
+    # The Streamlit UI intentionally accepts either a complete Cookie header or
+    # only the session value.  Sink discovery already supported the value-only
+    # form, so the scanner adapters must normalize it in the same way.
+    if "=" not in raw_cookie:
+        cookie_name = os.getenv(
+            "ROOKIESCAN_SESSION_COOKIE_NAME", "sslc_lab_session"
+        ).strip() or "sslc_lab_session"
+        return {cookie_name: raw_cookie}
     parsed = {}
-    for part in session_cookie.split(";"):
+    for part in raw_cookie.split(";"):
         if "=" not in part:
             continue
         name, value = part.split("=", 1)
@@ -88,7 +100,9 @@ def cookie_dict(session_cookie: Any) -> dict[str, str]:
 
 def cookie_header(session_cookie: Any) -> str:
     if isinstance(session_cookie, str):
-        return session_cookie.strip()
+        raw_cookie = session_cookie.strip()
+        if "=" in raw_cookie:
+            return raw_cookie
     return "; ".join(f"{name}={value}" for name, value in cookie_dict(session_cookie).items())
 
 
