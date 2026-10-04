@@ -1,7 +1,7 @@
 # ROOKIESCAN
 
 Streamlit에서 허가받은 대상을 입력받아 Sink를 찾고, OpenAI function call로 적절한
-취약점 검사 모듈을 선택·실행한 뒤 통합 JSON 보고서를 만드는 도구다.
+취약점 검사 모듈을 선택·실행한 뒤 통합 JSON 보고서를 만드는 도구
 
 ## 현재 구조
 
