@@ -37,7 +37,7 @@ class SqliCsrfTest(unittest.TestCase):
                 "parameter": "title",
             }, "SCAN-test")
 
-        self.assertEqual([call[0] for call in calls], ["GET", "POST", "GET", "POST"])
+        self.assertEqual([call[0] for call in calls], ["GET", "POST"] * 5)
         self.assertEqual(calls[1][2]["data"], {
             "csrf_token": "fresh-token", "category": "기타", "title": "ROOKIESCAN",
             "body": "ROOKIESCAN", "action": "preview",
@@ -46,6 +46,10 @@ class SqliCsrfTest(unittest.TestCase):
             "csrf_token": "fresh-token", "category": "기타", "title": "'",
             "body": "ROOKIESCAN", "action": "preview",
         })
+        self.assertEqual(
+            [calls[index][2]["data"]["title"] for index in (1, 3, 5, 7, 9)],
+            ["ROOKIESCAN", "'", "'", '"', '"'],
+        )
 
     def test_csrf_control_is_not_scanned(self):
         scanner = Scanner({"base_url": "https://lab.example", "delay": 0})

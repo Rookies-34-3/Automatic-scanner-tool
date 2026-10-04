@@ -35,6 +35,12 @@ from .xss.reflected_xss import ReflectedXSSScanner
 Options = dict[str, Any] | None
 DEFAULT_AUTH_TIMEOUT = 3.0
 MAX_AUTH_COMPARE_CHARS = 65_536
+SQLI_CONTROL_PARAMETER_NAMES = {
+    "csrf", "csrf_token", "_csrf", "token",
+    "action", "submit",
+    "file", "files", "upload", "attachment", "taskresult",
+    "is_secret",
+}
 
 
 def _origin(url: str) -> str:
@@ -102,11 +108,35 @@ def _normalize_many(
     ]
 
 
-def scan_sqli(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
-    findings = []
+def _sqli_parameters(parameters: Any) -> list[dict[str, str]]:
+    """SQL 문자열을 실제로 넣을 수 있는 쿼리·본문 필드만 반환한다."""
+    usable = []
+    seen = set()
     for parameter in normalize_parameters(parameters):
-        if parameter["location"] == "header":
+        name = parameter["name"]
+        location = parameter["location"]
+        key = (name, location)
+        if (
+            location not in {"query", "form", "body", "json"}
+            or name.lower() in SQLI_CONTROL_PARAMETER_NAMES
+            or key in seen
+        ):
             continue
+        seen.add(key)
+        usable.append(parameter)
+    return usable
+
+
+def scan_sqli(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
+    method = method.upper()
+    usable_parameters = _sqli_parameters(parameters)
+    if method not in {"GET", "POST"}:
+        return [review_finding(
+            "sqli", "SQL Injection", url, method, usable_parameters or parameters,
+            f"현재 SQLi 스캐너가 {method} 요청 본문을 구성하지 못해 검사를 보류했습니다.",
+        )]
+    findings = []
+    for parameter in usable_parameters:
         raw = run_sqli_native(
             url, method, parameter["name"], cookie_dict(session_cookie),
         )
@@ -121,7 +151,7 @@ def scan_sqli(url: str, method: str, parameters: Any, session_cookie: Any = "", 
         ))
     return findings or [review_finding(
         "sqli", "SQL Injection", url, method, parameters,
-        "점검할 쿼리 또는 본문 파라미터가 없습니다.",
+        "CSRF·파일·버튼·경로 ID를 제외하면 점검할 쿼리 또는 본문 필드가 없습니다.",
     )]
 
 

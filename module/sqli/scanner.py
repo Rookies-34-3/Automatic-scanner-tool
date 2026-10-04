@@ -23,7 +23,7 @@ MYSQL_ERROR = re.compile(
     re.IGNORECASE,
 )
 REMEDIATION = "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
-SQLI_FORM_TYPES = {"text", "search", "textarea", "email", "tel", "url"}
+SQLI_FORM_TYPES = {"text", "search", "textarea", "email", "tel", "url", "select"}
 
 
 class ScanError(Exception):
@@ -124,8 +124,8 @@ class Scanner:
                     raise ScanError(f"필수 파일 입력값이 필요합니다: {name}")
                 continue
             if kind in {"checkbox", "radio"}:
-                if field.has_attr("checked"):
-                    fields[name] = field.get("value", "on")
+                if field.has_attr("checked") or field.has_attr("required"):
+                    fields.setdefault(name, field.get("value", "on"))
                 continue
             if kind == "submit":
                 if field.get("value"):
@@ -134,12 +134,12 @@ class Scanner:
             if field.name == "select":
                 options = [option for option in field.select("option:not([disabled])")]
                 selected = next((option for option in options if option.has_attr("selected")), None)
-                if selected is None and field.has_attr("required"):
+                if selected is None:
                     selected = next((option for option in options if option.get("value", option.text)), None)
                 fields[name] = selected.get("value", selected.text) if selected else ""
                 continue
             value = field.get_text() if field.name == "textarea" else field.get("value", "")
-            if field.has_attr("required") and not value:
+            if not value and (field.has_attr("required") or kind in SQLI_FORM_TYPES):
                 value = safe_values.get(kind, "ROOKIESCAN")
             fields[name] = value
 
@@ -152,15 +152,14 @@ class Scanner:
 
     def result_text(self, response, payload):
         document = soup(response)
-        selector = self.config.get("result_selector", "tbody")
-        regions = document.select(selector)
-        if not regions:
-            raise ScanError(f"검색 결과 영역을 찾지 못했습니다. result_selector 확인: {selector}")
-        # 검색창, 스크립트 및 반사된 페이로드를 비교에서 제외한다.
-        for region in regions:
-            for node in region.select("script, style, input, textarea"):
-                node.decompose()
-        text = " ".join(region.get_text(" ", strip=True) for region in regions)
+        region = document.body or document
+        # tbody 존재 여부에 의존하지 않고 응답 본문 전체를 비교한다. 동적 입력값과
+        # 공통 메뉴는 결과 차이로 오인하기 쉬우므로 텍스트 추출에서 제외한다.
+        for node in region.select(
+            "script, style, input, textarea, select, button, nav, header, footer"
+        ):
+            node.decompose()
+        text = region.get_text(" ", strip=True)
         return " ".join(text.replace(payload, "").split()) if payload else " ".join(text.split())
 
     def scan(self, target, scan_id):
@@ -183,6 +182,10 @@ class Scanner:
             options = {"params": request_data} if method == "GET" else {"data": request_data}
             response = self.request(method, target["path"], **options)
             finding["status_code"] = response.status_code
+            # 정상 요청은 통과하지만 SQLi 문자열만 400/403/422로 거부되는 경우에는
+            # 입력 검증이 동작한 증거로 사용하기 위해 응답을 호출부에 돌려준다.
+            if payload not in (None, "") and response.status_code in {400, 403, 422}:
+                return response
             if 300 <= response.status_code < 500 or login_form(response):
                 raise ScanError(f"인증·접근·리다이렉트 문제 (HTTP {response.status_code})")
             return response
@@ -200,6 +203,16 @@ class Scanner:
             # 오류 응답은 500일 수도 있으므로 오류 흔적을 HTTP 성공 여부보다 먼저 검사한다.
             for payload in ("'", "\""):
                 responses = [fetch(payload), fetch(payload)]
+                rejected = [response.status_code in {400, 403, 422} for response in responses]
+                if all(rejected):
+                    finding["details"]["checks"].append({
+                        "type": "input_validation", "payload": payload,
+                        "status_codes": [response.status_code for response in responses],
+                        "confirmed": True,
+                    })
+                    continue
+                if any(rejected):
+                    raise ScanError("SQLi 입력 거부 응답이 반복되지 않아 판정을 보류합니다.")
                 matches = [MYSQL_ERROR.search(r.text) for r in responses]
                 if all(matches):
                     finding.update(result="VULNERABLE", severity="HIGH", payload=payload,
@@ -213,6 +226,19 @@ class Scanner:
                     self.check_page(response)
             else:
                 finding["details"]["checks"].append({"type": "error", "confirmed": False})
+            rejected_checks = [
+                check for check in finding["details"]["checks"]
+                if check["type"] == "input_validation" and check["confirmed"]
+            ]
+            if len(rejected_checks) == 2:
+                statuses = sorted({
+                    status for check in rejected_checks for status in check["status_codes"]
+                })
+                finding.update(
+                    result="SAFE",
+                    evidence=f"따옴표 SQLi 입력이 반복해서 HTTP {statuses} 응답으로 거부됨",
+                )
+                return finding
             boolean_started = True
             base_text = self.result_text(baseline, "")
             if base_text != self.result_text(fetch(baseline_payload), ""):
@@ -322,8 +348,11 @@ def run(url, method, parameters, cookie):
         query = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
                  if key != parameters]
         target_url = urlunsplit(parts._replace(query=urlencode(query)))
-    scanner = Scanner({"base_url": f"{parts.scheme}://{parts.netloc}",
-                       "timeout": 10, "delay": 0.2, "result_selector": "tbody"})
+    scanner = Scanner({
+        "base_url": f"{parts.scheme}://{parts.netloc}",
+        "timeout": 10,
+        "delay": 0.2,
+    })
     try:
         # 이 호출에서만 쓰는 세션입니다. 쿠키는 결과나 로그에 포함하지 않습니다.
         scanner.session.cookies.update(cookie)

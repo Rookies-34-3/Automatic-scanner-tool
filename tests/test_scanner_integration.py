@@ -10,6 +10,7 @@ from module import scanner_tools
 from module.analysis_stub import TOOL_SCHEMA as STUB_TOOL_SCHEMA, analyze_endpoint_stub
 from module.tool_registry import SCANNERS, TOOL_SCHEMAS, execute_tool
 from module.ssrf.scanner import SSRFScanner
+from module.sqli.scanner import Scanner as SQLiScanner
 from module.fileio_scanner.client import Client
 from module.fileio_scanner.pipeline import resolve_config
 
@@ -121,6 +122,90 @@ class ScannerIntegrationTest(unittest.TestCase):
             )
         self.assertEqual(findings[0]["vuln"], "PASS")
         self.assertEqual(findings[0]["parameters"], [{"name": "content", "location": "body"}])
+
+    def test_sqli_uses_full_response_body_without_reflected_form_values(self):
+        scanner = SQLiScanner({"base_url": "http://127.0.0.1:8080", "delay": 0})
+        response = SimpleNamespace(text="""
+            <html><body>
+              <header>공통 메뉴</header>
+              <main><form><input value="payload"><p>전체 응답의 검색 결과</p></form></main>
+            </body></html>
+        """)
+        try:
+            self.assertEqual(scanner.result_text(response, "payload"), "전체 응답의 검색 결과")
+        finally:
+            scanner.session.close()
+
+    def test_sqli_builds_complete_normal_post_form_values(self):
+        scanner = SQLiScanner({"base_url": "http://127.0.0.1:8080", "delay": 0})
+        page = SimpleNamespace(status_code=200, text="""
+            <form method="post" action="/customer/contact/write">
+              <input type="hidden" name="csrf_token" value="fresh-token">
+              <select name="category">
+                <option value="">선택</option><option value="question">문의</option>
+              </select>
+              <input type="text" name="title" value="">
+              <textarea name="body"></textarea>
+              <input type="checkbox" name="terms" value="yes" required>
+              <button type="submit" name="action" value="preview">미리보기</button>
+            </form>
+        """)
+        try:
+            with patch.object(scanner, "request", return_value=page):
+                fields = scanner.form_request_data({
+                    "path": "/customer/contact/write", "parameter": "category",
+                })
+        finally:
+            scanner.session.close()
+        self.assertEqual(fields, {
+            "csrf_token": "fresh-token",
+            "category": "question",
+            "title": "ROOKIESCAN",
+            "body": "ROOKIESCAN",
+            "terms": "yes",
+            "action": "preview",
+        })
+
+    def test_sqli_skips_control_file_and_path_parameters(self):
+        parameters = [
+            {"name": "path_id_1", "location": "path"},
+            {"name": "csrf_token", "location": "form"},
+            {"name": "file", "location": "form"},
+            {"name": "action", "location": "form"},
+            {"name": "is_secret", "location": "form"},
+            {"name": "content", "location": "query"},
+            {"name": "content", "location": "query"},
+        ]
+
+        def native(url, method, parameter, cookie):
+            return {
+                "url": url, "method": method, "parameters": parameter,
+                "vuln": "SAFE", "result": {"evidence": "미탐지"}, "severity": "NONE",
+            }
+
+        with patch.object(scanner_tools, "run_sqli_native", side_effect=native) as run:
+            findings = scanner_tools.scan_sqli(ARGS["url"], "GET", parameters, "")
+        self.assertEqual([call.args[2] for call in run.call_args_list], ["content"])
+        self.assertEqual(len(findings), 1)
+
+    def test_sqli_treats_repeated_payload_rejection_as_completed_check(self):
+        scanner = SQLiScanner({"base_url": "http://127.0.0.1:8080", "delay": 0})
+        baseline = SimpleNamespace(status_code=200, text="<html><body>정상 화면</body></html>")
+        rejected = SimpleNamespace(status_code=400, text="<html><body>잘못된 입력</body></html>")
+        try:
+            with patch.object(
+                scanner, "request", side_effect=[baseline, rejected, rejected, rejected, rejected],
+            ):
+                finding = scanner.scan({
+                    "path": "/customer/contact", "method": "GET", "parameter": "category",
+                }, "SCAN-test")
+        finally:
+            scanner.session.close()
+        self.assertEqual(finding["result"], "SAFE")
+        self.assertEqual(
+            [check["type"] for check in finding["details"]["checks"]],
+            ["input_validation", "input_validation", "error"],
+        )
 
     def test_xss_request_error_is_not_reported_as_pass(self):
         raw = {
