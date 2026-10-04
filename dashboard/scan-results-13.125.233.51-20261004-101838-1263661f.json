@@ -1,0 +1,4493 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-10-04T01:18:38.257128+00:00",
+  "target": "http://13.125.233.51/",
+  "summary": {
+    "total_endpoints": 47,
+    "total_scans": 69,
+    "total_findings": 103,
+    "vulnerable_scans": 26,
+    "vulnerable": 29,
+    "pass": 61,
+    "review": 13,
+    "error": 0
+  },
+  "results": [
+    {
+      "url": "http://13.125.233.51/",
+      "method": "GET",
+      "scanner": "portscan",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/notice",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/notice",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/notice?content=&page=1",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/notice?content=&page=1",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/task",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/task",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/qna",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "SQL Injection",
+          "severity": "HIGH",
+          "parameter": "content",
+          "payload": "'",
+          "evidence": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+          "description": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+          "recommendation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/qna",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "Reflected XSS",
+          "severity": "HIGH",
+          "parameter": "content",
+          "payload": "\" autofocus onfocus=alert(1337) x=\"",
+          "evidence": "OK\" method=\"get\">\n      <input name=\"content\" aria-label=\"게시글 검색\" placeholder=\"검색어를 입력해주세요.\" value=\"\" autofocus onfocus=alert(1337) x=\"\" maxlength=\"200\">\n      <button class=\"search-icon\" type=\"submit\" aria-label=\"검색\"><img alt=\"\" src=\"",
+          "description": "OK\" method=\"get\">\n      <input name=\"content\" aria-label=\"게시글 검색\" placeholder=\"검색어를 입력해주세요.\" value=\"\" autofocus onfocus=alert(1337) x=\"\" maxlength=\"200\">\n      <button class=\"search-icon\" type=\"submit\" aria-label=\"검색\"><img alt=\"\" src=\"",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=1",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "SQL Injection",
+          "severity": "HIGH",
+          "parameter": "content",
+          "payload": "'",
+          "evidence": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+          "description": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+          "recommendation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=1",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=3",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "SQL Injection",
+          "severity": "HIGH",
+          "parameter": "content",
+          "payload": "'",
+          "evidence": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+          "description": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+          "recommendation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=3",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/customer",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/customer",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/customer/faq",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/customer/faq",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/customer/contact",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/customer/contact",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/mypage/my-information/2",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "email, path_id_1, phone",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/mypage/my-information/2",
+      "method": "GET",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/mypage/my-information/2",
+      "method": "GET",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/uploads/",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/uploads/",
+      "method": "GET",
+      "scanner": "directory_indexing",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "Directory Indexing",
+          "severity": "HIGH",
+          "parameter": "",
+          "payload": null,
+          "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+          "description": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "Extension Bypass - Double Extension",
+          "severity": "HIGH",
+          "parameter": "file",
+          "payload": "a.php.png",
+          "evidence": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+          "description": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        },
+        {
+          "type": "Extension Bypass - Double Extension",
+          "severity": "HIGH",
+          "parameter": "file",
+          "payload": "a.php.txt",
+          "evidence": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+          "description": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        },
+        {
+          "type": "Path Traversal in Filename",
+          "severity": "HIGH",
+          "parameter": "file",
+          "payload": "../../fio_traversal.txt",
+          "evidence": "파일명 미살균: 저장명에 경로구분자 잔존('../../fio_traversal.txt') → 디렉토리 이탈 가능",
+          "description": "파일명 미살균: 저장명에 경로구분자 잔존('../../fio_traversal.txt') → 디렉토리 이탈 가능",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        },
+        {
+          "type": "Content Validation Bypass (Magic Bytes)",
+          "severity": "MEDIUM",
+          "parameter": "file",
+          "payload": "poly.png",
+          "evidence": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+          "description": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/download/{id}",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "Unrestricted File Enumeration (Download)",
+          "severity": "MEDIUM",
+          "parameter": "id",
+          "payload": "1..200",
+          "evidence": "예측 가능한 순차 ID로 인증 사용자에게 파일 91개가 연속 노출됨, 표본 UI에서 보이지 않은 파일 81개 포함 - 파일 ID 대입만으로 대량 다운로드 가능한 열거 취약점 확인",
+          "description": "예측 가능한 순차 ID로 인증 사용자에게 파일 91개가 연속 노출됨, 표본 UI에서 보이지 않은 파일 81개 포함 - 파일 ID 대입만으로 대량 다운로드 가능한 열거 취약점 확인",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/download/91",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/download/..%2F..%2F..%2F..%2Fetc%2Fpasswd",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/download/....%2F%2F....%2F%2F....%2F%2Fetc%2Fpasswd",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/download/..%2f..%2f..%2fetc%2fpasswd",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/download/%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/download/..%252f..%252fetc%252fpasswd",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/download/%2Fetc%2Fpasswd",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/download/..%5C..%5C..%5Cwindows%5Cwin.ini",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/download/....%5C%5C....%5C%5Cwindows%5Cwin.ini",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/download/file%3A%2F%2F%2Fetc%2Fpasswd",
+      "method": "GET",
+      "scanner": "fileio",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/admin",
+      "method": "GET",
+      "scanner": "admin_exposure",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "Administrator Page Exposure",
+          "severity": "HIGH",
+          "parameter": "",
+          "payload": null,
+          "evidence": "비로그인 상태에서 HTTP 200 응답이 반환되었으며, 관리자 페이지 식별 지표 4개가 확인되었습니다: data-active=\"admin\", 관리자 페이지, 관리자 대시보드, lab-admin-section",
+          "description": "비로그인 상태에서 HTTP 200 응답이 반환되었으며, 관리자 페이지 식별 지표 4개가 확인되었습니다: data-active=\"admin\", 관리자 페이지, 관리자 대시보드, lab-admin-section",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/admin",
+      "method": "GET",
+      "scanner": "authn",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "Insufficient Authentication",
+          "severity": "NONE",
+          "parameter": "",
+          "payload": null,
+          "evidence": "비로그인 요청도 HTTP 200이지만 응답 유사도는 73.4%로 수동 확인이 필요합니다.",
+          "description": "비로그인 요청도 HTTP 200이지만 응답 유사도는 73.4%로 수동 확인이 필요합니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/notice/1",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/task/1",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/pbl/1",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/qna/290",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/customer/resources/1",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/customer/faq/1",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/customer/contact/33?secret=1",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/customer/contact/22",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/api/profiles/2",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/login",
+      "method": "POST",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "INFO",
+          "parameter": "csrf_token, password, userId",
+          "payload": null,
+          "evidence": "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
+          "description": "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/login",
+      "method": "POST",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/uploads/1/",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/uploads/1/",
+      "method": "GET",
+      "scanner": "directory_indexing",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "Directory Indexing",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+          "description": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/uploads/knowledge/",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/uploads/knowledge/",
+      "method": "GET",
+      "scanner": "directory_indexing",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "Directory Indexing",
+          "severity": "HIGH",
+          "parameter": "",
+          "payload": null,
+          "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+          "description": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/uploads/0b0bc909-fio_traversal.txt",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "MEDIUM",
+          "parameter": "",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+          "description": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/uploads/1/qna/2d11eb6f-adminsecret.txt",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "MEDIUM",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+          "description": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/uploads/2/qna/03ffc9c1-poly.png",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "MEDIUM",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+          "description": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/task/1",
+      "method": "POST",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "INFO",
+          "parameter": "taskResult, csrf_token, path_id_1",
+          "payload": null,
+          "evidence": "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
+          "description": "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/pbl/1",
+      "method": "POST",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "INFO",
+          "parameter": "taskResult, csrf_token, path_id_1",
+          "payload": null,
+          "evidence": "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
+          "description": "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/download/83",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "MEDIUM",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+          "description": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "SQL Injection",
+          "severity": "INFO",
+          "parameter": "title",
+          "payload": null,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "description": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "recommendation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다.",
+          "vuln": "REVIEW"
+        },
+        {
+          "type": "SQL Injection",
+          "severity": "INFO",
+          "parameter": "body",
+          "payload": null,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "description": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "recommendation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/pre-course/write",
+      "method": "POST",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/pre-course/write",
+      "method": "POST",
+      "scanner": "ssrf",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "Server-Side Request Forgery",
+          "severity": "HIGH",
+          "parameter": "csrf_token, action, action, title, url",
+          "payload": null,
+          "evidence": "대상 응답에서 내부 서비스 접근 증거 `SSRF SUCCESS - internal-service reached`를 확인했습니다.",
+          "description": "대상 응답에서 내부 서비스 접근 증거 `SSRF SUCCESS - internal-service reached`를 확인했습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/pre-course/write",
+      "method": "POST",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/customer/contact/write",
+      "method": "POST",
+      "scanner": "sqli",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": [
+        {
+          "type": "SQL Injection",
+          "severity": "INFO",
+          "parameter": "category",
+          "payload": null,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "description": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "recommendation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다.",
+          "vuln": "REVIEW"
+        },
+        {
+          "type": "SQL Injection",
+          "severity": "INFO",
+          "parameter": "title",
+          "payload": null,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "description": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "recommendation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다.",
+          "vuln": "REVIEW"
+        },
+        {
+          "type": "SQL Injection",
+          "severity": "INFO",
+          "parameter": "body",
+          "payload": null,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "description": "인증·접근·리다이렉트 문제 (HTTP 302)",
+          "recommendation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다.",
+          "vuln": "REVIEW"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/customer/contact/write",
+      "method": "POST",
+      "scanner": "xss",
+      "status": "completed",
+      "vulnerable": false,
+      "findings": []
+    },
+    {
+      "url": "http://13.125.233.51/uploads/1/qna/",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/uploads/1/qna/",
+      "method": "GET",
+      "scanner": "directory_indexing",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "Directory Indexing",
+          "severity": "HIGH",
+          "parameter": "path_id_1",
+          "payload": null,
+          "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+          "description": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    },
+    {
+      "url": "http://13.125.233.51/uploads/knowledge/0e171e0ab2604cad9e4ced02270372d9.png",
+      "method": "GET",
+      "scanner": "authz",
+      "status": "completed",
+      "vulnerable": true,
+      "findings": [
+        {
+          "type": "IDOR/BOLA",
+          "severity": "HIGH",
+          "parameter": "",
+          "payload": null,
+          "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "description": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+          "recommendation": "해당 기능의 입력 검증과 접근 제어를 적용하세요.",
+          "vuln": "VULNERABLE"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "scanner_id": "portscan",
+      "name": "Unexpected Open Port",
+      "url": "http://13.125.233.51/",
+      "method": "GET",
+      "parameters": [],
+      "vuln": "PASS",
+      "result": "접근 가능한 포트: [80]. 허용되지 않은 포트가 확인되었습니다: []",
+      "severity": "NONE",
+      "details": {
+        "host": "13.125.233.51",
+        "scanned_ports": [
+          80
+        ],
+        "open_ports": [
+          80
+        ],
+        "allowed_ports": [
+          80
+        ],
+        "unexpected_ports": [],
+        "timeout": 1.0
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/notice",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 177,
+              "false_length": 177,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 177,
+              "false_length": 177,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-ad510cc37284",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/my-class/board/notice",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "payload was not reflected",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "content",
+            "vulnerable": false,
+            "context": "HTML_ATTRIBUTE",
+            "payload": "\" autofocus onfocus=alert(1337) x=\"",
+            "reason": "payload was not reflected"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/notice?content=&page=1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 177,
+              "false_length": 177,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 177,
+              "false_length": 177,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-70d0289fd35d",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/notice?content=&page=1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "page",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 617,
+              "false_length": 617,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 617,
+              "false_length": 617,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-966922c403e0",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/my-class/board/notice?content=&page=1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        },
+        {
+          "name": "page",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "input value was not reflected in response / input value was not reflected in response",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "content",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "page",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/task",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 174,
+              "false_length": 174,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 174,
+              "false_length": 174,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-b0ed5f3e30dd",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/my-class/board/task",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "payload was not reflected",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "content",
+            "vulnerable": false,
+            "context": "HTML_ATTRIBUTE",
+            "payload": "\" autofocus onfocus=alert(1337) x=\"",
+            "reason": "payload was not reflected"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/qna",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+      "severity": "HIGH",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": true
+            },
+            {
+              "type": "boolean",
+              "confirmed": false,
+              "completed": false,
+              "reason": "게시판 접근 실패 또는 세션 만료 (HTTP 500)"
+            }
+          ],
+          "payload": "'",
+          "status_code": 500,
+          "evidence": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax"
+        },
+        "scan_id": "SCAN-70e76e1da888",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/my-class/board/qna",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "OK\" method=\"get\">\n      <input name=\"content\" aria-label=\"게시글 검색\" placeholder=\"검색어를 입력해주세요.\" value=\"\" autofocus onfocus=alert(1337) x=\"\" maxlength=\"200\">\n      <button class=\"search-icon\" type=\"submit\" aria-label=\"검색\"><img alt=\"\" src=\"",
+      "severity": "HIGH",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "content",
+            "vulnerable": true,
+            "context": "HTML_ATTRIBUTE",
+            "payload": "\" autofocus onfocus=alert(1337) x=\"",
+            "evidence": "OK\" method=\"get\">\n      <input name=\"content\" aria-label=\"게시글 검색\" placeholder=\"검색어를 입력해주세요.\" value=\"\" autofocus onfocus=alert(1337) x=\"\" maxlength=\"200\">\n      <button class=\"search-icon\" type=\"submit\" aria-label=\"검색\"><img alt=\"\" src=\""
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+      "severity": "HIGH",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": true
+            },
+            {
+              "type": "boolean",
+              "confirmed": false,
+              "completed": false,
+              "reason": "게시판 접근 실패 또는 세션 만료 (HTTP 500)"
+            }
+          ],
+          "payload": "'",
+          "status_code": 500,
+          "evidence": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax"
+        },
+        "scan_id": "SCAN-3110dfd97e3c",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "page",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 529,
+              "false_length": 529,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 529,
+              "false_length": 529,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-2834513242af",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        },
+        {
+          "name": "page",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "input value was not reflected in response / input value was not reflected in response",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "content",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "page",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=3",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+      "severity": "HIGH",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": true
+            },
+            {
+              "type": "boolean",
+              "confirmed": false,
+              "completed": false,
+              "reason": "게시판 접근 실패 또는 세션 만료 (HTTP 500)"
+            }
+          ],
+          "payload": "'",
+          "status_code": 500,
+          "evidence": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax"
+        },
+        "scan_id": "SCAN-227eb8c27aa9",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=3",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "page",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 529,
+              "false_length": 529,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 529,
+              "false_length": 529,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-9dd1df28a9da",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/my-class/board/qna?content=&page=3",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        },
+        {
+          "name": "page",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "input value was not reflected in response / input value was not reflected in response",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "content",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "page",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/customer",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 64,
+              "false_length": 64,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 64,
+              "false_length": 64,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-e03bc5deb22b",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/customer",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "payload was not reflected",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "content",
+            "vulnerable": false,
+            "context": "HTML_ATTRIBUTE",
+            "payload": "\" autofocus onfocus=alert(1337) x=\"",
+            "reason": "payload was not reflected"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/customer/faq",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 64,
+              "false_length": 64,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 64,
+              "false_length": 64,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-119d49baea8c",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/customer/faq",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "payload was not reflected",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "content",
+            "vulnerable": false,
+            "context": "HTML_ATTRIBUTE",
+            "payload": "\" autofocus onfocus=alert(1337) x=\"",
+            "reason": "payload was not reflected"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/customer/contact",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "category",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "따옴표 SQLi 입력이 반복해서 HTTP [400] 응답으로 거부됨",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "input_validation",
+              "payload": "'",
+              "status_codes": [
+                400,
+                400
+              ],
+              "confirmed": true
+            },
+            {
+              "type": "input_validation",
+              "payload": "\"",
+              "status_codes": [
+                400,
+                400
+              ],
+              "confirmed": true
+            },
+            {
+              "type": "error",
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 400,
+          "evidence": "따옴표 SQLi 입력이 반복해서 HTTP [400] 응답으로 거부됨"
+        },
+        "scan_id": "SCAN-7aa8e996bec3",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/customer/contact",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 68,
+              "false_length": 68,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 68,
+              "false_length": 68,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-70d40ff0d3ff",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/customer/contact",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "category",
+          "location": "query"
+        },
+        {
+          "name": "content",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "input value was not reflected in response / payload was not reflected",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "category",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "content",
+            "vulnerable": false,
+            "context": "HTML_ATTRIBUTE",
+            "payload": "\" autofocus onfocus=alert(1337) x=\"",
+            "reason": "payload was not reflected"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/mypage/my-information/2",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "email",
+          "location": "query"
+        },
+        {
+          "name": "path_id_1",
+          "location": "path"
+        },
+        {
+          "name": "phone",
+          "location": "query"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 0.9918,
+        "owner": {
+          "status": 200,
+          "body_size": 8094,
+          "body_hash": "9e65e360749334b3"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 8094,
+          "body_hash": "3dffac19f4fbffbc"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/mypage/my-information/2",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "email",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 108,
+              "false_length": 108,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 108,
+              "false_length": 108,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-f5c2515c00a3",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/mypage/my-information/2",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "phone",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 108,
+              "false_length": 108,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 108,
+              "false_length": 108,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-62ddf81e33bc",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/mypage/my-information/2",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "email",
+          "location": "query"
+        },
+        {
+          "name": "path_id_1",
+          "location": "path"
+        },
+        {
+          "name": "phone",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "input value was not reflected in response / input value was not reflected in response / input value was not reflected in response",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "email",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "path_id_1",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "phone",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/uploads/",
+      "method": "GET",
+      "parameters": [],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 1634,
+          "body_hash": "aeacbca16981009a"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 1634,
+          "body_hash": "aeacbca16981009a"
+        },
+        "anonymous": {
+          "status": 200,
+          "body_size": 1634,
+          "body_hash": "aeacbca16981009a"
+        },
+        "anonymous_blocked": null
+      }
+    },
+    {
+      "scanner_id": "directory_indexing",
+      "name": "Directory Indexing",
+      "url": "http://13.125.233.51/uploads/",
+      "method": "GET",
+      "parameters": [],
+      "vuln": "VULNERABLE",
+      "result": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+      "severity": "HIGH",
+      "details": {
+        "matched_indicators": [
+          "Index of /",
+          "<title>Index of"
+        ],
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Extension Bypass - Double Extension",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+      "severity": "HIGH",
+      "details": {
+        "uploaded_filename": "a.php.png",
+        "accepted": true,
+        "download_path": "/download/85",
+        "stored_filename": "a.php.png",
+        "served_content_type": "application/octet-stream",
+        "served_inline": false,
+        "content_retrievable": true,
+        "note": "이중 확장자",
+        "scan_id": "SCAN-001",
+        "payload": "a.php.png",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Extension Bypass - Double Extension",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+      "severity": "HIGH",
+      "details": {
+        "uploaded_filename": "a.php.txt",
+        "accepted": true,
+        "download_path": "/download/86",
+        "stored_filename": "a.php.txt",
+        "served_content_type": "application/octet-stream",
+        "served_inline": false,
+        "content_retrievable": true,
+        "note": "이중 확장자",
+        "scan_id": "SCAN-002",
+        "payload": "a.php.txt",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal in Filename",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "파일명 미살균: 저장명에 경로구분자 잔존('../../fio_traversal.txt') → 디렉토리 이탈 가능",
+      "severity": "HIGH",
+      "details": {
+        "uploaded_filename": "../../fio_traversal.txt",
+        "accepted": true,
+        "download_path": "/download/88",
+        "stored_filename": "../../fio_traversal.txt",
+        "served_content_type": "application/octet-stream",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "파일명에 경로 이탈 시도",
+        "scan_id": "SCAN-003",
+        "payload": "../../fio_traversal.txt",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Content Validation Bypass (Magic Bytes)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "query"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+      "severity": "MEDIUM",
+      "details": {
+        "uploaded_filename": "poly.png",
+        "accepted": true,
+        "download_path": "/download/87",
+        "stored_filename": "poly.png",
+        "served_content_type": "application/octet-stream",
+        "served_inline": false,
+        "content_retrievable": true,
+        "note": "PNG 헤더 + 코드",
+        "scan_id": "SCAN-004",
+        "payload": "poly.png",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Unrestricted File Enumeration (Download)",
+      "url": "http://13.125.233.51/download/{id}",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "query"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "예측 가능한 순차 ID로 인증 사용자에게 파일 91개가 연속 노출됨, 표본 UI에서 보이지 않은 파일 81개 포함 - 파일 ID 대입만으로 대량 다운로드 가능한 열거 취약점 확인",
+      "severity": "MEDIUM",
+      "details": {
+        "range": [
+          1,
+          200
+        ],
+        "scanned_window": [
+          1,
+          200
+        ],
+        "accessible_count": 91,
+        "as_user": "attacker",
+        "ui_visible_count": 10,
+        "ui_crawl_coverage": {
+          "posts_found": 10,
+          "posts_crawled": 10,
+          "complete": true
+        },
+        "ui_crawl_complete": true,
+        "hidden_from_ui_count": 81,
+        "hidden_from_ui_sample": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "structural_weakness": "predictable_sequential_id + unrestricted_bulk_download",
+        "scan_id": "SCAN-005",
+        "payload": "1..200",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Dangerous File Extension (PHP)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "sh.php",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "서버측 스크립트 실행 가능 확장자",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-006",
+        "payload": "sh.php",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Dangerous File Extension (JSP)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "sh.jsp",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "JSP 실행 확장자",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-007",
+        "payload": "sh.jsp",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Dangerous File Extension (ASP)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "sh.asp",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "ASP 실행 확장자",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-008",
+        "payload": "sh.asp",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Dangerous File Extension (ASPX)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "sh.aspx",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "ASPX 실행 확장자",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-009",
+        "payload": "sh.aspx",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Dangerous File Extension (Executable)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "run.exe",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "실행파일 업로드",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-010",
+        "payload": "run.exe",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Stored XSS via File Upload (HTML)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "x.html",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "HTML 파일 업로드",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-011",
+        "payload": "x.html",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "SVG XSS",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "x.svg",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "스크립트 포함 SVG",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-012",
+        "payload": "x.svg",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Extension Bypass - Case Variation",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "a.PhP",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "대소문자 혼용 확장자",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-013",
+        "payload": "a.PhP",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Extension Bypass - Trailing Dot",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "a.php.",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "확장자 뒤 점",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-014",
+        "payload": "a.php.",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Extension Bypass - Trailing Space",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "a.php ",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "확장자 뒤 공백",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-015",
+        "payload": "a.php ",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Extension Bypass - Null Byte",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "a.php\u0000.png",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "널바이트 확장자 우회",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-016",
+        "payload": "a.php\u0000.png",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Extension Bypass - Alternate (phar)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "a.phar",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "대체 실행 확장자",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-017",
+        "payload": "a.phar",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Extension Bypass - Alternate (php5/phtml)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "a.phtml",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "대체 실행 확장자",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-018",
+        "payload": "a.phtml",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "MIME Type Spoofing",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "a.php",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "Content-Type 를 이미지로 위조",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-019",
+        "payload": "a.php",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Content Validation Bypass (Magic Bytes)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "poly.php",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "GIF 매직바이트 + 코드 폴리글랏",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-020",
+        "payload": "poly.php",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal in Filename",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "경로구분자가 제거되어 상위 디렉터리 이동이 발생하지 않음(저장명='....fio_win.txt')",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "..\\..\\fio_win.txt",
+        "accepted": true,
+        "download_path": "/download/89",
+        "stored_filename": "....fio_win.txt",
+        "served_content_type": "application/octet-stream",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "윈도우 경로 이탈 시도",
+        "scan_id": "SCAN-021",
+        "payload": "..\\..\\fio_win.txt",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Special File Upload (.htaccess)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": ".htaccess",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "서버 설정 파일 업로드",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-022",
+        "payload": ".htaccess",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Special File Upload (web.config)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "서버가 거부함 [서버 거부(HTTP 400)] (status=400, 결과=업로드 폼으로 복귀/재표시)",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "web.config",
+        "accepted": false,
+        "download_path": null,
+        "stored_filename": "",
+        "served_content_type": "",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "IIS 설정 파일 업로드",
+        "rejection": {
+          "status": 400,
+          "landing": "업로드 폼으로 복귀/재표시",
+          "message": "",
+          "inferred": "서버 거부(HTTP 400)"
+        },
+        "scan_id": "SCAN-023",
+        "payload": "web.config",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Filename Injection (CRLF)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "body"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "CR/LF 파일명을 전송했으나 저장명·응답 헤더에 개행 영향이 확인되지 않음",
+      "severity": "INFO",
+      "details": {
+        "uploaded_filename": "a%0d%0a.txt",
+        "accepted": true,
+        "download_path": "/download/90",
+        "stored_filename": "a%0d%0a.txt",
+        "served_content_type": "application/octet-stream",
+        "served_inline": false,
+        "content_retrievable": false,
+        "note": "파일명 CRLF 주입",
+        "scan_id": "SCAN-024",
+        "payload": "a%0d%0a.txt",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Missing Authentication (Upload)",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "미인증 업로드 차단됨",
+      "severity": "INFO",
+      "details": {
+        "accepted": false,
+        "final_url": "http://13.125.233.51/login",
+        "scan_id": "SCAN-025",
+        "payload": "anon.txt",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Missing Authentication (Download)",
+      "url": "http://13.125.233.51/download/91",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "session",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "미인증 차단(status=302)",
+      "severity": "INFO",
+      "details": {
+        "location": "/login",
+        "scan_id": "SCAN-026",
+        "payload": "(no cookie)",
+        "status_code": 302
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "IDOR - Horizontal (Download)",
+      "url": "http://13.125.233.51/download/91",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "타 사용자 첨부를 받았으나 해당 글/링크가 공격자에게 정상 노출됨(공유 자원) - 개별 열람은 IDOR 아님. 단, 엔드포인트에 자원별 인가가 없어 '공유 게시판 가정 하에서만' 안전(열거 항목 참고)",
+      "severity": "INFO",
+      "details": {
+        "victim": "victim",
+        "attacker": "attacker",
+        "downloaded": true,
+        "content_matched": true,
+        "victim_post_url": "http://13.125.233.51/my-class/board/qna/315",
+        "attacker_can_view_post": true,
+        "attacker_sees_download_link": true,
+        "note_authz": "no per-resource authorization; safe only under shared-board assumption",
+        "scan_id": "SCAN-027",
+        "payload": "/download/91",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Content-Disposition Inline (XSS risk)",
+      "url": "http://13.125.233.51/download/91",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "Content-Disposition",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "attachment 강제(브라우저 렌더 방지)",
+      "severity": "INFO",
+      "details": {
+        "content_type": "application/octet-stream",
+        "disposition": "attachment; filename=victim.txt",
+        "x_content_type_options": "nosniff",
+        "scan_id": "SCAN-028",
+        "payload": "",
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal / LFI (Download)",
+      "url": "http://13.125.233.51/download/..%2F..%2F..%2F..%2Fetc%2Fpasswd",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "시스템 파일 노출 없음(status=400)",
+      "severity": "INFO",
+      "details": {
+        "body_snippet": "<html>\r\n<head><title>400 Bad Request</title></head>\r\n<body>\r\n<center><h1>400 Bad Request</h1></center>\r\n<hr><center>ngin",
+        "scan_id": "SCAN-029",
+        "payload": "../../../../etc/passwd",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal / LFI (Download)",
+      "url": "http://13.125.233.51/download/....%2F%2F....%2F%2F....%2F%2Fetc%2Fpasswd",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "시스템 파일 노출 없음(status=404)",
+      "severity": "INFO",
+      "details": {
+        "body_snippet": "<!doctype html>\n<html lang=\"ko\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, in",
+        "scan_id": "SCAN-030",
+        "payload": "....//....//....//etc/passwd",
+        "status_code": 404
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal / LFI (Download)",
+      "url": "http://13.125.233.51/download/..%2f..%2f..%2fetc%2fpasswd",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "시스템 파일 노출 없음(status=400)",
+      "severity": "INFO",
+      "details": {
+        "body_snippet": "<html>\r\n<head><title>400 Bad Request</title></head>\r\n<body>\r\n<center><h1>400 Bad Request</h1></center>\r\n<hr><center>ngin",
+        "scan_id": "SCAN-031",
+        "payload": "..%2f..%2f..%2fetc%2fpasswd",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal / LFI (Download)",
+      "url": "http://13.125.233.51/download/%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "시스템 파일 노출 없음(status=400)",
+      "severity": "INFO",
+      "details": {
+        "body_snippet": "<html>\r\n<head><title>400 Bad Request</title></head>\r\n<body>\r\n<center><h1>400 Bad Request</h1></center>\r\n<hr><center>ngin",
+        "scan_id": "SCAN-032",
+        "payload": "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+        "status_code": 400
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal / LFI (Download)",
+      "url": "http://13.125.233.51/download/..%252f..%252fetc%252fpasswd",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "시스템 파일 노출 없음(status=404)",
+      "severity": "INFO",
+      "details": {
+        "body_snippet": "<!doctype html>\n<html lang=\"ko\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, in",
+        "scan_id": "SCAN-033",
+        "payload": "..%252f..%252fetc%252fpasswd",
+        "status_code": 404
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal / LFI (Download)",
+      "url": "http://13.125.233.51/download/%2Fetc%2Fpasswd",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "시스템 파일 노출 없음(status=404)",
+      "severity": "INFO",
+      "details": {
+        "body_snippet": "<!doctype html>\n<html lang=\"ko\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, in",
+        "scan_id": "SCAN-034",
+        "payload": "/etc/passwd",
+        "status_code": 404
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal / LFI (Download)",
+      "url": "http://13.125.233.51/download/..%5C..%5C..%5Cwindows%5Cwin.ini",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "시스템 파일 노출 없음(status=404)",
+      "severity": "INFO",
+      "details": {
+        "body_snippet": "<!doctype html>\n<html lang=\"ko\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, in",
+        "scan_id": "SCAN-035",
+        "payload": "..\\..\\..\\windows\\win.ini",
+        "status_code": 404
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal / LFI (Download)",
+      "url": "http://13.125.233.51/download/....%5C%5C....%5C%5Cwindows%5Cwin.ini",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "시스템 파일 노출 없음(status=404)",
+      "severity": "INFO",
+      "details": {
+        "body_snippet": "<!doctype html>\n<html lang=\"ko\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, in",
+        "scan_id": "SCAN-036",
+        "payload": "....\\\\....\\\\windows\\win.ini",
+        "status_code": 404
+      }
+    },
+    {
+      "scanner_id": "fileio",
+      "name": "Path Traversal / LFI (Download)",
+      "url": "http://13.125.233.51/download/file%3A%2F%2F%2Fetc%2Fpasswd",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "id",
+          "location": "path"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "시스템 파일 노출 없음(status=404)",
+      "severity": "INFO",
+      "details": {
+        "body_snippet": "<!doctype html>\n<html lang=\"ko\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, in",
+        "scan_id": "SCAN-037",
+        "payload": "file:///etc/passwd",
+        "status_code": 404
+      }
+    },
+    {
+      "scanner_id": "admin_exposure",
+      "name": "Administrator Page Exposure",
+      "url": "http://13.125.233.51/admin",
+      "method": "GET",
+      "parameters": [],
+      "vuln": "VULNERABLE",
+      "result": "비로그인 상태에서 HTTP 200 응답이 반환되었으며, 관리자 페이지 식별 지표 4개가 확인되었습니다: data-active=\"admin\", 관리자 페이지, 관리자 대시보드, lab-admin-section",
+      "severity": "HIGH",
+      "details": {
+        "matched_indicators": [
+          "data-active=\"admin\"",
+          "관리자 페이지",
+          "관리자 대시보드",
+          "lab-admin-section"
+        ],
+        "indicator_count": 4,
+        "required_indicator_count": 2,
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "authn",
+      "name": "Insufficient Authentication",
+      "url": "http://13.125.233.51/admin",
+      "method": "GET",
+      "parameters": [],
+      "vuln": "REVIEW",
+      "result": "비로그인 요청도 HTTP 200이지만 응답 유사도는 73.4%로 수동 확인이 필요합니다.",
+      "severity": "NONE",
+      "details": {
+        "authenticated_status": 200,
+        "anonymous_status": 200
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/my-class/board/notice/1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 0.9929,
+        "owner": {
+          "status": 200,
+          "body_size": 9588,
+          "body_hash": "ba9b1ff8fa6cc3bd"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 9588,
+          "body_hash": "679f793c0bd04de3"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/my-class/board/task/1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 0.989,
+        "owner": {
+          "status": 200,
+          "body_size": 9845,
+          "body_hash": "0e296b6cd7fbbd3a"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 9845,
+          "body_hash": "47a70c28a64c8d1e"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/my-class/pbl/1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 0.9891,
+        "owner": {
+          "status": 200,
+          "body_size": 10036,
+          "body_hash": "feb616b551f5d312"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 10036,
+          "body_hash": "a61b2887ef36b493"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/my-class/board/qna/290",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 0.9928,
+        "owner": {
+          "status": 200,
+          "body_size": 9334,
+          "body_hash": "510342d1d90e3ccd"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 9334,
+          "body_hash": "bf1403eeb506cf98"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/customer/resources/1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 0.9921,
+        "owner": {
+          "status": 200,
+          "body_size": 8330,
+          "body_hash": "ca64c5578e5b1080"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 8330,
+          "body_hash": "5fef48200dfd4184"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/customer/faq/1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 0.992,
+        "owner": {
+          "status": 200,
+          "body_size": 8249,
+          "body_hash": "2b87635a3eda8d1b"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 8249,
+          "body_hash": "8b858c8f823217f2"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/customer/contact/33?secret=1",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        },
+        {
+          "name": "secret",
+          "location": "query"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "다른 사용자 요청이 HTTP 403로 차단되었습니다.",
+      "severity": "NONE",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 0.0,
+        "owner": {
+          "status": 200,
+          "body_size": 8272,
+          "body_hash": "439134c9078fab4b"
+        },
+        "attacker": {
+          "status": 403,
+          "body_size": 8819,
+          "body_hash": "25696491da0d584c"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/customer/contact/22",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 0.992,
+        "owner": {
+          "status": 200,
+          "body_size": 8221,
+          "body_hash": "9922ce5bbc78912e"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 8221,
+          "body_hash": "5918ea414728ac1d"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/api/profiles/2",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 140,
+          "body_hash": "71f8046c1d23faac"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 140,
+          "body_hash": "71f8046c1d23faac"
+        },
+        "anonymous": {
+          "status": 401,
+          "body_size": 69,
+          "body_hash": "e718d94f317f0a13"
+        },
+        "anonymous_blocked": "HTTP 401"
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/login",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "csrf_token",
+          "location": "form"
+        },
+        {
+          "name": "password",
+          "location": "form"
+        },
+        {
+          "name": "userId",
+          "location": "form"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
+      "severity": "INFO",
+      "details": {}
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/login",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "csrf_token",
+          "location": "form"
+        },
+        {
+          "name": "password",
+          "location": "form"
+        },
+        {
+          "name": "userId",
+          "location": "form"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "input value was not reflected in response / input value was not reflected in response / input value was not reflected in response",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "csrf_token",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "password",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "userId",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/uploads/1/",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 252,
+          "body_hash": "a3ffc09248276fd5"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 252,
+          "body_hash": "a3ffc09248276fd5"
+        },
+        "anonymous": {
+          "status": 200,
+          "body_size": 252,
+          "body_hash": "a3ffc09248276fd5"
+        },
+        "anonymous_blocked": null
+      }
+    },
+    {
+      "scanner_id": "directory_indexing",
+      "name": "Directory Indexing",
+      "url": "http://13.125.233.51/uploads/1/",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+      "severity": "HIGH",
+      "details": {
+        "matched_indicators": [
+          "Index of /",
+          "<title>Index of"
+        ],
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/uploads/knowledge/",
+      "method": "GET",
+      "parameters": [],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 300,
+          "body_hash": "f8e4462b4d1d9dc2"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 300,
+          "body_hash": "f8e4462b4d1d9dc2"
+        },
+        "anonymous": {
+          "status": 200,
+          "body_size": 300,
+          "body_hash": "f8e4462b4d1d9dc2"
+        },
+        "anonymous_blocked": null
+      }
+    },
+    {
+      "scanner_id": "directory_indexing",
+      "name": "Directory Indexing",
+      "url": "http://13.125.233.51/uploads/knowledge/",
+      "method": "GET",
+      "parameters": [],
+      "vuln": "VULNERABLE",
+      "result": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+      "severity": "HIGH",
+      "details": {
+        "matched_indicators": [
+          "Index of /",
+          "<title>Index of"
+        ],
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/uploads/0b0bc909-fio_traversal.txt",
+      "method": "GET",
+      "parameters": [],
+      "vuln": "REVIEW",
+      "result": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+      "severity": "MEDIUM",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 9,
+          "body_hash": "a570734280136ec0"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 9,
+          "body_hash": "a570734280136ec0"
+        },
+        "anonymous": {
+          "status": 200,
+          "body_size": 9,
+          "body_hash": "a570734280136ec0"
+        },
+        "anonymous_blocked": null
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/uploads/1/qna/2d11eb6f-adminsecret.txt",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+      "severity": "MEDIUM",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 35,
+          "body_hash": "4cc0223f958b9417"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 35,
+          "body_hash": "4cc0223f958b9417"
+        },
+        "anonymous": {
+          "status": 200,
+          "body_size": 35,
+          "body_hash": "4cc0223f958b9417"
+        },
+        "anonymous_blocked": null
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/uploads/2/qna/03ffc9c1-poly.png",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+      "severity": "MEDIUM",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 37,
+          "body_hash": "a54bf5ea3d02fb6e"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 37,
+          "body_hash": "a54bf5ea3d02fb6e"
+        },
+        "anonymous": {
+          "status": 200,
+          "body_size": 37,
+          "body_hash": "a54bf5ea3d02fb6e"
+        },
+        "anonymous_blocked": null
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/my-class/board/task/1",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "taskResult",
+          "location": "form"
+        },
+        {
+          "name": "csrf_token",
+          "location": "form"
+        },
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
+      "severity": "INFO",
+      "details": {}
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/my-class/pbl/1",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "taskResult",
+          "location": "form"
+        },
+        {
+          "name": "csrf_token",
+          "location": "form"
+        },
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
+      "severity": "INFO",
+      "details": {}
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/download/83",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "다른 사용자 요청이 HTTP 200로 성공했지만 응답 유사도는 100.0%여서 수동 확인이 필요합니다.",
+      "severity": "MEDIUM",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 35,
+          "body_hash": "4cc0223f958b9417"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 35,
+          "body_hash": "4cc0223f958b9417"
+        },
+        "anonymous": {
+          "status": 302,
+          "body_size": 199,
+          "body_hash": "5da82accbf2ff96f"
+        },
+        "anonymous_blocked": "로그인 페이지 이동(HTTP 302)"
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "title",
+          "location": "form"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "인증·접근·리다이렉트 문제 (HTTP 302)",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [],
+          "payload": null,
+          "status_code": 302,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)"
+        },
+        "scan_id": "SCAN-1e23eb5e4334",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "body",
+          "location": "form"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "인증·접근·리다이렉트 문제 (HTTP 302)",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [],
+          "payload": null,
+          "status_code": 302,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)"
+        },
+        "scan_id": "SCAN-f6e6742dcea0",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/my-class/board/write/qna",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "form"
+        },
+        {
+          "name": "csrf_token",
+          "location": "form"
+        },
+        {
+          "name": "title",
+          "location": "form"
+        },
+        {
+          "name": "body",
+          "location": "form"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "input value was not reflected in response / input value was not reflected in response / input value was not reflected in response / input value was not reflected in response",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "file",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "csrf_token",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "title",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "body",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/pre-course/write",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "title",
+          "location": "form"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 142,
+              "false_length": 142,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 142,
+              "false_length": 142,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-e955ee50dd62",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/pre-course/write",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "url",
+          "location": "form"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [
+            {
+              "type": "error",
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%' AND 1=1 -- ",
+              "false_payload": "%' AND 1=2 -- ",
+              "true_length": 105,
+              "false_length": 105,
+              "stable": true,
+              "confirmed": false
+            },
+            {
+              "type": "boolean",
+              "true_payload": "%') AND 1=1 -- ",
+              "false_payload": "%') AND 1=2 -- ",
+              "true_length": 105,
+              "false_length": 105,
+              "stable": true,
+              "confirmed": false
+            }
+          ],
+          "payload": null,
+          "status_code": 200,
+          "evidence": "실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지"
+        },
+        "scan_id": "SCAN-a80a1a9e6a7e",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "ssrf",
+      "name": "Server-Side Request Forgery",
+      "url": "http://13.125.233.51/pre-course/write",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "csrf_token",
+          "location": "form"
+        },
+        {
+          "name": "action",
+          "location": "form"
+        },
+        {
+          "name": "action",
+          "location": "form"
+        },
+        {
+          "name": "title",
+          "location": "form"
+        },
+        {
+          "name": "url",
+          "location": "form"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "대상 응답에서 내부 서비스 접근 증거 `SSRF SUCCESS - internal-service reached`를 확인했습니다.",
+      "severity": "HIGH",
+      "details": {
+        "probe_url": "http://internal-service:9000/course",
+        "parameter": "url",
+        "action": "preview",
+        "form_status": 200,
+        "target_status": 200,
+        "final_url": "http://13.125.233.51/pre-course/write",
+        "evidence_marker": "SSRF SUCCESS - internal-service reached"
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/pre-course/write",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "csrf_token",
+          "location": "form"
+        },
+        {
+          "name": "action",
+          "location": "form"
+        },
+        {
+          "name": "action",
+          "location": "form"
+        },
+        {
+          "name": "title",
+          "location": "form"
+        },
+        {
+          "name": "url",
+          "location": "form"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "input value was not reflected in response / input value was not reflected in response / input value was not reflected in response / input value was not reflected in response",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "csrf_token",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "action",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "title",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "url",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/customer/contact/write",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "category",
+          "location": "form"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "인증·접근·리다이렉트 문제 (HTTP 302)",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [],
+          "payload": null,
+          "status_code": 302,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)"
+        },
+        "scan_id": "SCAN-15d09615e582",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/customer/contact/write",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "title",
+          "location": "form"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "인증·접근·리다이렉트 문제 (HTTP 302)",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [],
+          "payload": null,
+          "status_code": 302,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)"
+        },
+        "scan_id": "SCAN-dc575874e4c4",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "sqli",
+      "name": "SQL Injection",
+      "url": "http://13.125.233.51/customer/contact/write",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "body",
+          "location": "form"
+        }
+      ],
+      "vuln": "REVIEW",
+      "result": "인증·접근·리다이렉트 문제 (HTTP 302)",
+      "severity": "INFO",
+      "details": {
+        "raw_result": {
+          "base_url": "http://13.125.233.51/",
+          "checks": [],
+          "payload": null,
+          "status_code": 302,
+          "evidence": "인증·접근·리다이렉트 문제 (HTTP 302)"
+        },
+        "scan_id": "SCAN-80581cfc3160",
+        "category": "SQL Injection",
+        "remediation": "사용자 입력을 SQL에 직접 연결하지 말고 파라미터 바인딩(Prepared Statement)을 적용하며, DB 오류 상세는 서버 로그에만 기록합니다."
+      }
+    },
+    {
+      "scanner_id": "xss",
+      "name": "Reflected XSS",
+      "url": "http://13.125.233.51/customer/contact/write",
+      "method": "POST",
+      "parameters": [
+        {
+          "name": "file",
+          "location": "form"
+        },
+        {
+          "name": "is_secret",
+          "location": "form"
+        },
+        {
+          "name": "csrf_token",
+          "location": "form"
+        },
+        {
+          "name": "category",
+          "location": "form"
+        },
+        {
+          "name": "title",
+          "location": "form"
+        },
+        {
+          "name": "body",
+          "location": "form"
+        }
+      ],
+      "vuln": "PASS",
+      "result": "input value was not reflected in response / input value was not reflected in response / input value was not reflected in response / input value was not reflected in response / input value was not reflected in response / input value was not reflected in response",
+      "severity": "NONE",
+      "details": {
+        "raw_result": [
+          {
+            "parameter": "file",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "is_secret",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "csrf_token",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "category",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "title",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          },
+          {
+            "parameter": "body",
+            "vulnerable": false,
+            "reason": "input value was not reflected in response"
+          }
+        ]
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/uploads/1/qna/",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 514,
+          "body_hash": "38da597e9ae65c04"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 514,
+          "body_hash": "38da597e9ae65c04"
+        },
+        "anonymous": {
+          "status": 200,
+          "body_size": 514,
+          "body_hash": "38da597e9ae65c04"
+        },
+        "anonymous_blocked": null
+      }
+    },
+    {
+      "scanner_id": "directory_indexing",
+      "name": "Directory Indexing",
+      "url": "http://13.125.233.51/uploads/1/qna/",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "path_id_1",
+          "location": "path"
+        }
+      ],
+      "vuln": "VULNERABLE",
+      "result": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+      "severity": "HIGH",
+      "details": {
+        "matched_indicators": [
+          "Index of /",
+          "<title>Index of"
+        ],
+        "status_code": 200
+      }
+    },
+    {
+      "scanner_id": "authz",
+      "name": "IDOR/BOLA",
+      "url": "http://13.125.233.51/uploads/knowledge/0e171e0ab2604cad9e4ced02270372d9.png",
+      "method": "GET",
+      "parameters": [],
+      "vuln": "VULNERABLE",
+      "result": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+      "severity": "HIGH",
+      "details": {
+        "comparison": "owner_vs_other_user",
+        "similarity": 1.0,
+        "owner": {
+          "status": 200,
+          "body_size": 1461604,
+          "body_hash": "0d4ea7fa433c7519"
+        },
+        "attacker": {
+          "status": 200,
+          "body_size": 1461604,
+          "body_hash": "0d4ea7fa433c7519"
+        },
+        "anonymous": {
+          "status": 200,
+          "body_size": 1461604,
+          "body_hash": "0d4ea7fa433c7519"
+        },
+        "anonymous_blocked": null
+      }
+    }
+  ],
+  "ai": {
+    "model": "gpt-6.1-sol",
+    "summary": "AI 요약이 완료되지 않아 스캐너 판정 결과를 직접 표시합니다.\n\n판정 집계: VULNERABLE 29건, PASS 61건, REVIEW 13건, ERROR 0건\n\n확인된 취약점\n- [HIGH] SQL Injection — GET http://13.125.233.51/my-class/board/qna\n  - 입력 필드: content\n  - 근거: 반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax\n- [HIGH] Reflected XSS — GET http://13.125.233.51/my-class/board/qna\n  - 입력 필드: content\n  - 근거: OK\" method=\"get\">\n      <input name=\"content\" aria-label=\"게시글 검색\" placeholder=\"검색어를 입력해주세요.\" value=\"\" autofocus onfocus=alert(1337) x=\"\" maxlength=\"200\">\n      <button class=\"search-icon\" type=\"submit\" aria-label=\"검색\"><img alt=\"\" src=\"\n- [HIGH] SQL Injection — GET http://13.125.233.51/my-class/board/qna?content=&page=1\n  - 입력 필드: content\n  - 근거: 반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax\n- [HIGH] SQL Injection — GET http://13.125.233.51/my-class/board/qna?content=&page=3\n  - 입력 필드: content\n  - 근거: 반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/mypage/my-information/2\n  - 입력 필드: email, path_id_1, phone\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/uploads/\n  - 입력 필드: -\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] Directory Indexing — GET http://13.125.233.51/uploads/\n  - 입력 필드: -\n  - 근거: HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.\n- [HIGH] Extension Bypass - Double Extension — POST http://13.125.233.51/my-class/board/write/qna\n  - 입력 필드: file\n  - 근거: 코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨\n- [HIGH] Extension Bypass - Double Extension — POST http://13.125.233.51/my-class/board/write/qna\n  - 입력 필드: file\n  - 근거: 코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨\n- [HIGH] Path Traversal in Filename — POST http://13.125.233.51/my-class/board/write/qna\n  - 입력 필드: file\n  - 근거: 파일명 미살균: 저장명에 경로구분자 잔존('../../fio_traversal.txt') → 디렉토리 이탈 가능\n- [MEDIUM] Content Validation Bypass (Magic Bytes) — POST http://13.125.233.51/my-class/board/write/qna\n  - 입력 필드: file\n  - 근거: 코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨\n- [MEDIUM] Unrestricted File Enumeration (Download) — GET http://13.125.233.51/download/{id}\n  - 입력 필드: id\n  - 근거: 예측 가능한 순차 ID로 인증 사용자에게 파일 91개가 연속 노출됨, 표본 UI에서 보이지 않은 파일 81개 포함 - 파일 ID 대입만으로 대량 다운로드 가능한 열거 취약점 확인\n- [HIGH] Administrator Page Exposure — GET http://13.125.233.51/admin\n  - 입력 필드: -\n  - 근거: 비로그인 상태에서 HTTP 200 응답이 반환되었으며, 관리자 페이지 식별 지표 4개가 확인되었습니다: data-active=\"admin\", 관리자 페이지, 관리자 대시보드, lab-admin-section\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/my-class/board/notice/1\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/my-class/board/task/1\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/my-class/pbl/1\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/my-class/board/qna/290\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/customer/resources/1\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/customer/faq/1\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/customer/contact/22\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/api/profiles/2\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/uploads/1/\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] Directory Indexing — GET http://13.125.233.51/uploads/1/\n  - 입력 필드: path_id_1\n  - 근거: HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/uploads/knowledge/\n  - 입력 필드: -\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] Directory Indexing — GET http://13.125.233.51/uploads/knowledge/\n  - 입력 필드: -\n  - 근거: HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.\n- [HIGH] Server-Side Request Forgery — POST http://13.125.233.51/pre-course/write\n  - 입력 필드: csrf_token, action, action, title, url\n  - 근거: 대상 응답에서 내부 서비스 접근 증거 `SSRF SUCCESS - internal-service reached`를 확인했습니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/uploads/1/qna/\n  - 입력 필드: path_id_1\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.\n- [HIGH] Directory Indexing — GET http://13.125.233.51/uploads/1/qna/\n  - 입력 필드: path_id_1\n  - 근거: HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.\n- [HIGH] IDOR/BOLA — GET http://13.125.233.51/uploads/knowledge/0e171e0ab2604cad9e4ced02270372d9.png\n  - 입력 필드: -\n  - 근거: 다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+    "summary_scope": "scanner_results",
+    "summary_status": "fallback",
+    "summary_error": "OpenAI 요약 요청을 완료하지 못했습니다.",
+    "tool_call_count": 69
+  }
+}

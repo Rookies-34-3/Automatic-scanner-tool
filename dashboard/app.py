@@ -14,7 +14,7 @@ from openai import OpenAI
 
 # 연동 파일 설정: 실제 파일명이 확정되면 아래 값만 변경하면 됩니다.
 APP_DIR = Path(__file__).resolve().parent
-SCANNER_RESULT_FILENAME = "demo_scan_result_varied.json"
+SCANNER_RESULT_FILENAME = "scan-results-13.125.233.51-20261004-101838-1263661f.json"
 ANALYSIS_RESULT_FILENAME = "analysis.json"
 REPORT_MODULE_NAME = "report"
 REPORT_FUNCTION_NAME = "run"
@@ -213,13 +213,19 @@ def get_check_rows(scan_data: dict) -> pd.DataFrame:
             parameters = finding.get("parameters") or []
             parameter_names = ", ".join(item.get("name", "") if isinstance(item, dict) else str(item) for item in parameters)
             raw_result = details.get("raw_result") or {}
-            payload = raw_result.get("payload", "") if isinstance(raw_result, dict) else ""
+            if isinstance(raw_result, dict):
+                payload = raw_result.get("payload", "")
+            elif isinstance(raw_result, list) and raw_result and isinstance(raw_result[0], dict):
+                payload = raw_result[0].get("payload", "")
+            else:
+                payload = details.get("payload", "")
             rows.append({"유형": finding.get("name", "미지정"), "판정": finding.get("vuln", "REVIEW"),
                          "위험도": normalize_severity(finding.get("severity")), "스캐너": finding.get("scanner_id", ""),
                          "위치": finding.get("url", ""), "메서드": finding.get("method", ""),
                          "파라미터": parameter_names, "근거": finding.get("result", ""),
-                         "설명": finding.get("description") or finding.get("result", ""),
-                         "대응방안": details.get("remediation", ""), "페이로드": payload})
+                         "설명": finding.get("description", ""),
+                         "대응방안": details.get("remediation", ""), "페이로드": payload,
+                         "상세정보": details})
     else:
         for scan in scan_data.get("results", []):
             for finding in scan.get("findings") or [{}]:
@@ -229,25 +235,54 @@ def get_check_rows(scan_data: dict) -> pd.DataFrame:
                              "위치": scan.get("url", ""), "메서드": scan.get("method", ""),
                              "파라미터": finding.get("parameter", ""), "근거": finding.get("evidence", ""),
                              "설명": finding.get("description", ""), "대응방안": finding.get("recommendation", ""),
-                             "페이로드": finding.get("payload", "")})
-    return pd.DataFrame(rows, columns=["유형", "판정", "위험도", "스캐너", "위치", "메서드", "파라미터", "근거", "설명", "대응방안", "페이로드"])
+                             "페이로드": finding.get("payload", ""), "상세정보": finding.get("details") or {}})
+    return pd.DataFrame(rows, columns=["유형", "판정", "위험도", "스캐너", "위치", "메서드", "파라미터", "근거", "설명", "대응방안", "페이로드", "상세정보"])
 
 
-def render_overview(scan_data: dict) -> None:
+def get_analysis_section(analysis_data: dict) -> dict:
+    """분석 JSON에서 대시보드가 사용하는 analysis 영역만 반환합니다."""
+    analysis = analysis_data.get("analysis", {}) if isinstance(analysis_data, dict) else {}
+    return analysis if isinstance(analysis, dict) else {}
+
+
+def render_overall_assessment(analysis_data: dict) -> None:
+    """분석 JSON의 전체 평가를 Overview 하단에 표시합니다."""
+    analysis = get_analysis_section(analysis_data)
+    assessment = str(analysis.get("overall_assessment") or "").strip()
+    if not assessment:
+        return
+
+    risk = str(analysis.get("overall_risk") or "미지정").upper()
+    risk_class = risk.lower() if risk in SEVERITY_ORDER else "unknown"
+    st.html(
+        '<section class="overall-assessment">'
+        '<div class="overall-assessment-heading">'
+        '<div><h3>종합 위험 평가</h3></div>'
+        f'<strong class="assessment-risk {escape(risk_class)}">{escape(risk)}</strong>'
+        '</div>'
+        f'<p>{escape(assessment)}</p>'
+        '</section>'
+    )
+
+
+def render_overview(scan_data: dict, analysis_data: dict) -> None:
     checks = get_check_rows(redact_sensitive_data(scan_data))
     vulnerable = checks[checks["판정"] == "VULNERABLE"]
-    safe_count = int((checks["판정"] == "PASS").sum())
-    review_count = int((checks["판정"] == "REVIEW").sum())
-    error_count = int((checks["판정"] == "ERROR").sum())
-    counts = [len(checks), len(vulnerable), safe_count, review_count, error_count]
-    labels = [
-        ("전체 점검", "전체 실행 범위", "blue"),
-        ("취약점 확인", "취약점 증거 확인", "red"),
-        ("정상 처리", "정상 차단 또는 미탐지", "green"),
-        ("수동 검토", "사람 확인 필요", "gray"),
-        ("실행 오류", "설정·통신·실행 오류", "orange"),
+    source_summary = scan_data.get("summary") or {}
+    unique_endpoints = checks[["메서드", "위치"]].drop_duplicates().shape[0]
+    cards = [
+        ("점검 엔드포인트", source_summary.get("total_endpoints", unique_endpoints),
+         "점검 대상으로 수집된 고유 엔드포인트 수", "blue"),
+        ("전체 점검 횟수", source_summary.get("total_findings", len(checks)),
+         "스캐너가 처리한 총 점검 횟수", "navy"),
+        ("취약 판정", source_summary.get("vulnerable", int((checks["판정"] == "VULNERABLE").sum())),
+         "응답에서 취약점 증거가 확인됨", "red"),
+        ("양호", source_summary.get("pass", int((checks["판정"] == "PASS").sum())),
+         "공격이 차단되었거나 취약점이 탐지되지 않음", "green"),
+        ("검토 필요", source_summary.get("review", int((checks["판정"] == "REVIEW").sum())),
+         "취약 가능성이 있으나 증거가 불충분하여 직접 확인이 필요함", "gray"),
     ]
-    for column, count, (label, subtitle, color) in zip(st.columns(5), counts, labels):
+    for column, (label, count, subtitle, color) in zip(st.columns(len(cards)), cards):
         with column:
             st.html(f'<div class="scan-stat {color}"><div>{label}</div><strong>{count}<small>건</small></strong><footer>{subtitle}</footer></div>')
     chart_left, chart_right = st.columns([1.45, 1], gap="medium")
@@ -257,12 +292,51 @@ def render_overview(scan_data: dict) -> None:
         if vulnerable.empty:
             st.info("취약 판정이 없습니다.")
         else:
-            chart_data = vulnerable.groupby("유형").size().reset_index(name="건수")
-            chart = alt.Chart(chart_data).mark_bar(color="#3d80b8", cornerRadiusTopLeft=5, cornerRadiusTopRight=5, size=42).encode(
-                x=alt.X("유형:N", title=None, axis=alt.Axis(labelAngle=0, labelLimit=150)),
-                y=alt.Y("건수:Q", title=None, axis=alt.Axis(tickMinStep=1)), tooltip=["유형", "건수"])
-            st.altair_chart(chart.properties(height=220).configure_view(stroke=None).configure_axis(
-                gridColor="#edf1f5", domainColor="#e1e7ee", labelColor="#6b8198"), width="stretch")
+            chart_data = (
+                vulnerable.groupby("유형").size().reset_index(name="건수")
+                .sort_values(["건수", "유형"], ascending=[False, True])
+            )
+            type_order = chart_data["유형"].tolist()
+            maximum_count = int(chart_data["건수"].max())
+            x_limit = max(maximum_count * 1.16, maximum_count + 1)
+            base_chart = alt.Chart(chart_data).encode(
+                x=alt.X(
+                    "건수:Q",
+                    title=None,
+                    scale=alt.Scale(domain=[0, x_limit]),
+                    axis=alt.Axis(tickMinStep=1),
+                ),
+                y=alt.Y(
+                    "유형:N",
+                    title=None,
+                    sort=type_order,
+                    axis=alt.Axis(labelLimit=235),
+                ),
+                tooltip=[alt.Tooltip("유형:N"), alt.Tooltip("건수:Q")],
+            )
+            bars = base_chart.mark_bar(
+                color="#3d80b8",
+                cornerRadiusEnd=5,
+                size=18,
+            )
+            count_labels = base_chart.mark_text(
+                align="left",
+                baseline="middle",
+                dx=6,
+                color="#365b77",
+                fontSize=11,
+                fontWeight=700,
+            ).encode(text=alt.Text("건수:Q", format="d"))
+            chart_height = max(245, len(chart_data) * 30)
+            chart = (bars + count_labels).properties(height=chart_height)
+            st.altair_chart(
+                chart.configure_view(stroke=None).configure_axis(
+                    gridColor="#edf1f5",
+                    domainColor="#e1e7ee",
+                    labelColor="#5f7589",
+                ),
+                width="stretch",
+            )
     with chart_right.container(border=True, key="overview_severity"):
         st.markdown("#### 위험도 분포")
         st.caption("전체 점검 기준 · 양호 / 추가 검토 포함")
@@ -276,6 +350,8 @@ def render_overview(scan_data: dict) -> None:
                     legend=alt.Legend(orient="right", labelColor="#26445e", symbolType="square")),
                 tooltip=["위험도", "건수"])
             st.altair_chart(chart.properties(height=220).configure_view(stroke=None), width="stretch")
+
+    render_overall_assessment(analysis_data)
 
 
 def render_critical_alert(scan_data: dict) -> None:
@@ -326,6 +402,167 @@ def render_severity_chart(summary: dict) -> None:
         "count": [summary["severity_counts"][s] for s in SEVERITY_ORDER],
     }).set_index("severity")
     st.bar_chart(chart_df)
+
+
+def format_evidence_value(value: Any) -> str:
+    """기술 증거 값을 화면에서 읽기 쉬운 문자열로 변환합니다."""
+    if isinstance(value, bool):
+        return "예" if value else "아니요"
+    if value in (None, ""):
+        return "-"
+    return str(value)
+
+
+def has_display_value(value: Any) -> bool:
+    """None, NaN, 빈 문자열처럼 화면에 표시할 필요가 없는 값을 걸러냅니다."""
+    if value is None:
+        return False
+    if isinstance(value, float) and pd.isna(value):
+        return False
+    if isinstance(value, str) and not value.strip():
+        return False
+    if isinstance(value, (list, dict)) and not value:
+        return False
+    return True
+
+
+def render_evidence_fields(fields: list[tuple[str, Any]], columns: int = 3) -> None:
+    """라벨과 값을 작은 기술 정보 카드 형태로 표시합니다."""
+    visible_fields = [(label, value) for label, value in fields if has_display_value(value)]
+    for start in range(0, len(visible_fields), columns):
+        for column, (label, value) in zip(st.columns(columns), visible_fields[start:start + columns]):
+            with column:
+                st.html(
+                    '<div class="evidence-field">'
+                    f'<span>{escape(label)}</span>'
+                    f'<strong>{escape(format_evidence_value(value))}</strong>'
+                    '</div>'
+                )
+
+
+def render_scanner_evidence(row: pd.Series) -> None:
+    """선택한 스캐너에 맞춰 details의 핵심 기술 증거만 표시합니다."""
+    details = row.get("상세정보")
+    if not isinstance(details, dict) or not details:
+        st.info("이 점검에는 추가 기술 정보가 제공되지 않았습니다.")
+        return
+
+    scanner = str(row.get("스캐너", ""))
+    raw_result = details.get("raw_result")
+
+    if scanner == "sqli" and isinstance(raw_result, dict):
+        render_evidence_fields([
+            ("응답 상태", raw_result.get("status_code")),
+            ("검사 ID", details.get("scan_id")),
+            ("분류", details.get("category")),
+        ])
+        if raw_result.get("payload"):
+            st.caption("사용한 페이로드")
+            st.code(str(raw_result["payload"]), language="text")
+        checks = raw_result.get("checks") or []
+        if checks:
+            check_rows = [{
+                "검사 방식": check.get("type", "-"),
+                "확인 여부": "확인됨" if check.get("confirmed") else "미확인",
+                "비고": check.get("reason", ""),
+            } for check in checks]
+            st.caption("검사 결과")
+            st.dataframe(pd.DataFrame(check_rows), hide_index=True, width="stretch")
+
+    elif scanner == "xss" and isinstance(raw_result, list):
+        for index, evidence in enumerate(raw_result, 1):
+            st.markdown(f"**반영 증거 {index}**")
+            render_evidence_fields([
+                ("파라미터", evidence.get("parameter")),
+                ("반영 컨텍스트", evidence.get("context")),
+                ("취약 확인", evidence.get("vulnerable")),
+            ])
+            if evidence.get("payload"):
+                st.caption("사용한 페이로드")
+                st.code(str(evidence["payload"]), language="text")
+            if evidence.get("evidence"):
+                st.caption("응답에서 확인된 HTML")
+                st.code(str(evidence["evidence"]), language="html", wrap_lines=True)
+
+    elif scanner == "authz":
+        similarity = details.get("similarity")
+        similarity_text = f"{similarity * 100:.1f}%" if isinstance(similarity, (int, float)) else similarity
+        owner = details.get("owner") or {}
+        attacker = details.get("attacker") or {}
+        anonymous = details.get("anonymous") or {}
+        render_evidence_fields([
+            ("비교 방식", details.get("comparison")),
+            ("응답 유사도", similarity_text),
+            ("익명 접근", details.get("anonymous_blocked")),
+            ("소유자 응답", owner.get("status")),
+            ("다른 사용자 응답", attacker.get("status")),
+            ("비로그인 응답", anonymous.get("status")),
+        ])
+
+    elif scanner == "directory_indexing":
+        render_evidence_fields([
+            ("응답 상태", details.get("status_code")),
+            ("탐지 지표 수", len(details.get("matched_indicators") or [])),
+        ])
+        indicators = details.get("matched_indicators") or []
+        if indicators:
+            st.caption("확인된 디렉터리 목록 지표")
+            st.code("\n".join(map(str, indicators)), language="text")
+
+    elif scanner == "fileio":
+        if "accessible_count" in details:
+            render_evidence_fields([
+                ("점검 ID 범위", details.get("scanned_window") or details.get("range")),
+                ("접근 가능한 파일", details.get("accessible_count")),
+                ("UI 미노출 파일", details.get("hidden_from_ui_count")),
+                ("점검 사용자", details.get("as_user")),
+                ("구조적 약점", details.get("structural_weakness")),
+                ("검사 ID", details.get("scan_id")),
+            ])
+        else:
+            render_evidence_fields([
+                ("업로드 파일명", details.get("uploaded_filename")),
+                ("저장 파일명", details.get("stored_filename")),
+                ("업로드 허용", details.get("accepted")),
+                ("응답 상태", details.get("status_code")),
+                ("다운로드 경로", details.get("download_path")),
+                ("내용 재조회", details.get("content_retrievable")),
+                ("제공 콘텐츠 타입", details.get("served_content_type")),
+                ("브라우저 내 표시", details.get("served_inline")),
+                ("검사 설명", details.get("note")),
+            ])
+            rejection = details.get("rejection") or {}
+            if rejection:
+                st.caption("서버 차단 결과")
+                st.write(rejection.get("inferred") or rejection.get("message") or rejection)
+
+    elif scanner == "ssrf":
+        render_evidence_fields([
+            ("요청 대상", details.get("probe_url")),
+            ("입력 파라미터", details.get("parameter")),
+            ("수행 동작", details.get("action")),
+            ("폼 응답", details.get("form_status")),
+            ("대상 응답", details.get("target_status")),
+            ("최종 URL", details.get("final_url")),
+        ])
+        if details.get("evidence_marker"):
+            st.caption("내부 서비스 접근 식별 문구")
+            st.code(str(details["evidence_marker"]), language="text")
+
+    elif scanner == "admin_exposure":
+        render_evidence_fields([
+            ("응답 상태", details.get("status_code")),
+            ("확인된 지표", details.get("indicator_count")),
+            ("판정 필요 지표", details.get("required_indicator_count")),
+        ])
+        indicators = details.get("matched_indicators") or []
+        if indicators:
+            st.caption("관리자 페이지 식별 지표")
+            st.code("\n".join(map(str, indicators)), language="text")
+
+    else:
+        # 아직 전용 레이아웃이 없는 스캐너는 원본 정보를 접힌 JSON으로 제공합니다.
+        st.json(details, expanded=False)
 
 
 def render_findings_table(scan_data: dict) -> None:
@@ -410,39 +647,197 @@ def render_findings_table(scan_data: dict) -> None:
 
     detail_rows = filtered.reset_index(drop=True)
     selected_table_rows = table_event.selection.rows
-    if selected_table_rows:
+    if selected_table_rows and 0 <= int(selected_table_rows[0]) < len(detail_rows):
         # 표의 선택 행과 아래 상세 선택기를 같은 인덱스로 맞춥니다.
-        st.session_state["finding_detail_selection"] = selected_table_rows[0]
-    elif st.session_state.get("finding_detail_selection", 0) >= len(detail_rows):
-        # 필터 변경으로 결과 수가 줄어든 경우 유효한 첫 항목으로 되돌립니다.
-        st.session_state["finding_detail_selection"] = 0
+        st.session_state["finding_detail_selection_v2"] = int(selected_table_rows[0])
+    else:
+        # 위젯의 이전 상태가 문자열이거나 필터 변경 후 범위를 벗어나면 초기화합니다.
+        stored_selection = st.session_state.get("finding_detail_selection_v2", 0)
+        if not isinstance(stored_selection, int) or not 0 <= stored_selection < len(detail_rows):
+            st.session_state["finding_detail_selection_v2"] = 0
+
+    if not isinstance(st.session_state.get("finding_detail_selection_v2"), int):
+        st.session_state["finding_detail_selection_v2"] = 0
 
     selected_index = st.selectbox(
         "상세 항목 선택", range(len(detail_rows)),
         format_func=lambda index: f"[{detail_rows.iloc[index]['위험도']}] {detail_rows.iloc[index]['유형']} · {detail_rows.iloc[index]['메서드']} {detail_rows.iloc[index]['위치']}",
-        key="finding_detail_selection",
+        key="finding_detail_selection_v2",
     )
     row = detail_rows.iloc[selected_index]
     with st.container(border=True, key="finding_detail"):
-        detail_left, detail_right = st.columns(2)
-        with detail_left:
-            st.caption("점검 위치")
-            st.code(f"{row['메서드']} {row['위치']}", language=None, wrap_lines=True)
-            st.write(f"**스캐너:** {row['스캐너'] or '-'}")
-            st.write(f"**파라미터:** {row['파라미터'] or '-'}")
-        with detail_right:
-            st.caption("판정 정보")
-            st.write(f"**판정:** {verdict_korean.get(row['판정'], row['판정'])}")
-            st.write(f"**위험도:** {row['위험도']}")
-            st.write(f"**설명:** {row['설명'] or '-'}")
-        if row["근거"]:
-            st.caption("증거")
-            st.code(str(row["근거"]), language="text", wrap_lines=True)
-        if row["페이로드"]:
-            st.caption("Payload")
+        verdict_label = verdict_korean.get(row["판정"], row["판정"])
+        severity_class = str(row["위험도"]).lower()
+        st.html(
+            '<div class="finding-detail-header">'
+            '<div><span class="finding-detail-eyebrow">SELECTED FINDING</span>'
+            f'<h3>{escape(str(row["유형"]))}</h3></div>'
+            '<div class="finding-detail-badges">'
+            f'<span class="detail-badge verdict">{escape(str(verdict_label))}</span>'
+            f'<span class="detail-badge severity {escape(severity_class)}">{escape(str(row["위험도"]))}</span>'
+            f'<span class="detail-badge scanner">{escape(str(row["스캐너"] or "미지정"))}</span>'
+            '</div></div>'
+        )
+        st.html(
+            '<div class="finding-endpoint">'
+            f'<span>{escape(str(row["메서드"] or "-"))}</span>'
+            f'<code>{escape(str(row["위치"] or "-"))}</code>'
+            '</div>'
+        )
+        description = row["설명"] if has_display_value(row["설명"]) else ""
+        show_description = bool(description) and str(description).strip() != str(row["근거"]).strip()
+        info_cards = (
+            '<div class="detail-info-card"><span>점검 파라미터</span>'
+            f'<strong>{escape(str(row["파라미터"] or "경로 기반 점검"))}</strong></div>'
+        )
+        if show_description:
+            info_cards += (
+                '<div class="detail-info-card"><span>판정 설명</span>'
+                f'<strong>{escape(str(description))}</strong></div>'
+            )
+        st.html(f'<div class="detail-info-grid">{info_cards}</div>')
+
+        st.html('<div class="detail-section-title"><span>01</span> 탐지 근거</div>')
+        st.html(
+            '<div class="detail-evidence-block">'
+            f'{escape(str(row["근거"] or "탐지 근거가 제공되지 않았습니다."))}'
+            '</div>'
+        )
+        if has_display_value(row["페이로드"]):
+            st.html('<div class="detail-sub-label">사용한 페이로드</div>')
             st.code(str(row["페이로드"]), language="text", wrap_lines=True)
-        st.caption("대응방안")
-        st.write(row["대응방안"] or "추가 검토 후 적절한 보안 통제를 적용하세요.")
+
+        st.html('<div class="detail-section-title"><span>02</span> 대응 방안</div>')
+        remediation = row["대응방안"] or "추가 검토 후 적절한 보안 통제를 적용하세요."
+        st.html(f'<div class="detail-remediation-block">{escape(str(remediation))}</div>')
+
+        st.html('<div class="detail-section-title"><span>03</span> 상세 기술 증거</div>')
+        render_scanner_evidence(row)
+
+
+def get_review_guidance(row: pd.Series) -> tuple[str, list[str]]:
+    """REVIEW 판정의 원인과 사람이 확인할 항목을 스캐너별로 설명합니다."""
+    scanner = str(row.get("스캐너", ""))
+    method = str(row.get("메서드", "")).upper()
+    details = row.get("상세정보") if isinstance(row.get("상세정보"), dict) else {}
+
+    if scanner == "authn":
+        return (
+            "로그인 전후 요청이 모두 성공했지만 응답 차이만으로 보호 기능 노출 여부를 확정할 수 없습니다.",
+            [
+                "비로그인 응답에 관리자 전용 데이터나 기능이 실제 포함되는지 확인",
+                "페이지 진입 이후의 중요 기능에도 인증 검사가 적용되는지 확인",
+                "인증 세션 제거 후 동일 요청을 다시 실행해 결과 비교",
+            ],
+        )
+
+    if scanner == "authz" and method in {"POST", "PUT", "PATCH", "DELETE"} and not details:
+        return (
+            "데이터를 변경하는 요청이라 자동 교차 계정 검사를 실행하지 않아 권한 통제 여부가 확정되지 않았습니다.",
+            [
+                "테스트 계정 두 개로 동일 요청을 안전한 환경에서 교차 실행",
+                "다른 사용자의 객체 ID로 변경 요청이 거부되는지 확인",
+                "서버가 세션 사용자와 대상 객체의 소유권을 비교하는지 확인",
+            ],
+        )
+
+    if scanner == "authz":
+        similarity = details.get("similarity")
+        similarity_text = f"{similarity * 100:.1f}%" if isinstance(similarity, (int, float)) else "높은"
+        return (
+            f"다른 사용자의 요청도 성공했고 소유자 응답과 {similarity_text} 유사하지만, 해당 자원이 원래 공개 대상인지 판단이 필요합니다.",
+            [
+                "응답에 개인정보·비공개 파일 등 보호 대상 내용이 포함되는지 확인",
+                "서비스 정책상 다른 사용자에게 공개되는 자원인지 확인",
+                "객체 ID만 변경해 다른 비공개 자원에도 접근 가능한지 확인",
+            ],
+        )
+
+    if scanner == "sqli":
+        return (
+            "HTTP 리다이렉트 또는 인증 문제로 SQL Injection 검사가 끝까지 수행되지 않아 안전 여부를 확정할 수 없습니다.",
+            [
+                "유효한 인증 세션과 CSRF 토큰으로 동일 입력 지점을 재점검",
+                "302 이동 대상이 로그인 페이지인지 정상 처리 페이지인지 확인",
+                "서버 로그에서 SQL 오류 및 비정상 쿼리 실행 흔적 확인",
+            ],
+        )
+
+    return (
+        "자동 검사 결과만으로 취약 여부를 확정하기에 증거가 충분하지 않습니다.",
+        [
+            "원본 요청과 응답을 재현해 판정 근거 확인",
+            "해당 기능의 공개 범위와 접근 정책 확인",
+            "필요한 인증·권한 조건을 갖춰 재점검",
+        ],
+    )
+
+
+def render_review_queue(scan_data: dict) -> None:
+    """수동 확인이 필요한 REVIEW 항목과 검토 이유를 한 화면에 표시합니다."""
+    checks = get_check_rows(redact_sensitive_data(scan_data))
+    reviews = checks[checks["판정"] == "REVIEW"].reset_index(drop=True)
+
+    st.subheader("Review Queue")
+    st.caption("자동 판정이 보류된 항목입니다. 근거와 확인 포인트를 검토한 뒤 최종 판정을 결정하세요.")
+    if reviews.empty:
+        st.success("현재 수동 검토가 필요한 항목이 없습니다.")
+        return
+
+    summary_columns = st.columns(3)
+    summary_columns[0].metric("검토 항목", len(reviews), border=True)
+    summary_columns[1].metric(
+        "영향 엔드포인트",
+        reviews[["메서드", "위치"]].drop_duplicates().shape[0],
+        border=True,
+    )
+    summary_columns[2].metric("관련 스캐너", reviews["스캐너"].nunique(), border=True)
+
+    scanner_counts = reviews["스캐너"].value_counts().to_dict()
+    scanner_summary = " · ".join(f"{scanner} {count}건" for scanner, count in scanner_counts.items())
+    st.html(f'<div class="review-summary-strip">{escape(scanner_summary)}</div>')
+
+    for index, row in reviews.iterrows():
+        reason, checklist = get_review_guidance(row)
+        severity_class = str(row["위험도"]).lower()
+        with st.container(border=True, key=f"review_item_{index}"):
+            st.html(
+                '<div class="review-card-header">'
+                '<div class="review-card-number">'
+                f'{index + 1:02d}</div><div class="review-card-title">'
+                f'<strong>{escape(str(row["유형"]))}</strong>'
+                f'<span>{escape(str(row["스캐너"]))}</span></div>'
+                '<div class="finding-detail-badges">'
+                '<span class="detail-badge verdict">REVIEW</span>'
+                f'<span class="detail-badge severity {escape(severity_class)}">{escape(str(row["위험도"]))}</span>'
+                '</div></div>'
+            )
+            st.html(
+                '<div class="finding-endpoint review-endpoint">'
+                f'<span>{escape(str(row["메서드"]))}</span>'
+                f'<code>{escape(str(row["위치"]))}</code></div>'
+            )
+            st.html(
+                '<div class="review-reason"><span>왜 검토가 필요한가요?</span>'
+                f'<p>{escape(reason)}</p></div>'
+            )
+            evidence_column, checklist_column = st.columns([1, 1.15])
+            with evidence_column:
+                st.html(
+                    '<div class="review-column-title">자동 검사 근거</div>'
+                    f'<div class="review-evidence">{escape(str(row["근거"] or "근거 미제공"))}</div>'
+                )
+                if has_display_value(row["파라미터"]):
+                    st.html(
+                        '<div class="review-parameter"><span>확인 위치</span>'
+                        f'{escape(str(row["파라미터"]))}</div>'
+                    )
+            with checklist_column:
+                checklist_html = "".join(f"<li>{escape(item)}</li>" for item in checklist)
+                st.html(
+                    '<div class="review-column-title">직접 확인할 내용</div>'
+                    f'<ul class="review-checklist">{checklist_html}</ul>'
+                )
 
 
 def get_dummy_context(scan_data: dict) -> tuple[dict, pd.DataFrame, dict]:
@@ -593,43 +988,74 @@ def render_compliance_dummy(scan_data: dict) -> None:
         st.write("① 설정 변경 이력  ② 접근 통제 정책  ③ 재점검 결과  ④ 담당자 승인 기록")
 
 
-def render_attack_scenario_dummy(scan_data: dict) -> None:
-    # 여기에 실제 AI 호출 연결: 단계별 근거와 가정을 분리한 결과로 교체합니다.
-    _, findings, _ = get_dummy_context(scan_data)
-    confirmed = get_confirmed_findings(findings)
-    st.subheader("Attack Scenario Preview")
-    st.caption("가상의 연계 시나리오 · 공격을 실행하지 않으며, 단계 간 연결은 추가 가정입니다.")
-    available = {row["scanner"]: row for row in reversed(confirmed.to_dict("records"))}
-    scenarios = [
-        ("공개 파일에서 관리자 경로로", ["directory_indexing", "admin_exposure"],
-         ["파일 목록 노출", "관리자 경로 탐색"],
-         ["공개 목록에서 운영 관련 파일명을 파악한다고 가정합니다.", "파일 정보가 관리자 경로 탐색에 도움을 준다고 가정합니다. 관리자 인증 우회는 확인되지 않았습니다."]),
-        ("입력 결함에서 타인 정보로", ["sqli", "authz"], ["식별자 노출", "권한 경계 침범"],
-         ["입력 처리 결함으로 리소스 식별자가 노출된다고 가정합니다.", "소유권 검사가 누락되어 타인 정보에 접근한다고 가정합니다."]),
-        ("브라우저에서 내부 서비스로", ["xss", "ssrf"], ["브라우저 요청 유도", "내부 서비스 접근"],
-         ["피해자가 입력 내용을 열람한다고 가정합니다.", "해당 사용자의 URL 요청 기능이 내부 목적지에 접근 가능하다고 가정합니다."]),
-    ]
-    shown = 0
-    for title, scanners, labels, descriptions in scenarios:
-        if not all(scanner in available for scanner in scanners):
+def render_attack_scenarios(analysis_data: dict) -> None:
+    """분석 JSON에 생성된 공격 시나리오를 근거와 가정을 구분해 표시합니다."""
+    analysis = get_analysis_section(analysis_data)
+    scenarios = analysis.get("attack_scenarios") or []
+
+    st.subheader("Attack Scenarios")
+    st.caption("분석 결과에서 식별된 취약점 연계 가능성과 추가 확인 조건을 보여줍니다.")
+    if not isinstance(scenarios, list) or not scenarios:
+        st.info("분석 JSON에 표시할 공격 시나리오가 없습니다.")
+        return
+
+    valid_scenarios = [item for item in scenarios if isinstance(item, dict)]
+    evidence_count = len({ref for item in valid_scenarios for ref in (item.get("evidence_refs") or [])})
+    endpoint_count = len({url for item in valid_scenarios for url in (item.get("related_endpoints") or [])})
+    st.html(
+        '<div class="scenario-summary">'
+        f'<div><span>시나리오</span><strong>{len(valid_scenarios)}</strong><small>건</small></div>'
+        f'<div><span>연결된 근거</span><strong>{evidence_count}</strong><small>건</small></div>'
+        f'<div><span>관련 엔드포인트</span><strong>{endpoint_count}</strong><small>개</small></div>'
+        '</div>'
+    )
+
+    status_labels = {"possible": "연계 가능", "confirmed": "확인됨", "unlikely": "가능성 낮음"}
+    confidence_labels = {"high": "높은 신뢰도", "medium": "중간 신뢰도", "low": "낮은 신뢰도"}
+    for index, scenario in enumerate(scenarios, 1):
+        if not isinstance(scenario, dict):
             continue
-        shown += 1
-        st.markdown(f"### {shown:02d} · {title}")
-        st.caption(" → ".join(labels))
-        for step, (column, scanner, label, description) in enumerate(zip(st.columns(2), scanners, labels, descriptions), 1):
-            row = available[scanner]
-            with column.container(border=True):
-                st.badge(f"STEP {step:02d}", color="blue")
-                st.markdown(f"#### {label}")
-                st.caption(row["type"])
-                st.code(f"{row['method']} {urlsplit(row['url']).path}", language=None, wrap_lines=True)
-                st.write(description)
-                with st.expander("근거와 차단 조치"):
-                    st.text(row["url"])
-                    st.text(row["evidence"] or "미제공")
-                    st.text(row["recommendation"] or "접근 통제 재점검")
-    if not shown:
-        st.info("확인된 유형 조합으로 구성할 연계 시나리오가 없습니다.")
+        title = escape(str(scenario.get("title") or f"시나리오 {index}"))
+        candidate_ref = escape(str(scenario.get("candidate_ref") or f"S{index:03d}"))
+        status = str(scenario.get("scenario_status") or "possible").lower()
+        confidence = str(scenario.get("confidence") or "unknown").lower()
+        evidence_refs = scenario.get("evidence_refs") or []
+        vulnerability_types = scenario.get("related_vulnerability_types") or []
+        endpoints = scenario.get("related_endpoints") or []
+
+        evidence_tags = "".join(f'<span>{escape(str(ref))}</span>' for ref in evidence_refs)
+        type_tags = "".join(f'<span>{escape(str(item).upper())}</span>' for item in vulnerability_types)
+        endpoint_items = "".join(
+            f'<li><code>{escape(str(endpoint))}</code></li>' for endpoint in endpoints
+        ) or '<li class="empty">관련 엔드포인트 미제공</li>'
+
+        st.html(
+            '<article class="attack-scenario-card">'
+            '<header class="scenario-card-header">'
+            f'<div class="scenario-index">{index:02d}</div>'
+            f'<div class="scenario-title"><span>{candidate_ref}</span><h3>{title}</h3></div>'
+            '<div class="scenario-badges">'
+            f'<strong class="scenario-status {escape(status)}">{escape(status_labels.get(status, status))}</strong>'
+            f'<strong class="scenario-confidence {escape(confidence)}">{escape(confidence_labels.get(confidence, confidence))}</strong>'
+            '</div></header>'
+            '<div class="scenario-meta">'
+            f'<div><label>관련 취약점</label><div class="scenario-tags type">{type_tags or "<span>미제공</span>"}</div></div>'
+            f'<div><label>근거 ID</label><div class="scenario-tags evidence">{evidence_tags or "<span>미제공</span>"}</div></div>'
+            '</div>'
+            '<section class="scenario-narrative">'
+            '<span>예상 공격 흐름</span>'
+            f'<p>{escape(str(scenario.get("scenario") or "설명이 제공되지 않았습니다."))}</p>'
+            '</section>'
+            '<div class="scenario-detail-grid">'
+            '<section><span>잠재적 영향</span>'
+            f'<p>{escape(str(scenario.get("potential_impact") or "미제공"))}</p></section>'
+            '<section><span>추가 확인 조건</span>'
+            f'<p>{escape(str(scenario.get("required_conditions") or "미제공"))}</p></section>'
+            '</div>'
+            '<section class="scenario-endpoints"><span>관련 엔드포인트</span>'
+            f'<ul>{endpoint_items}</ul></section>'
+            '</article>'
+        )
 
 
 def render_top_bar() -> None:
@@ -796,7 +1222,7 @@ def main() -> None:
     try:
         # 업로드 파일이 있으면 우선 사용하고, 없으면 상단에 지정된 파일을 자동으로 읽습니다.
         scan_data = load_scan_result(uploaded_file) if uploaded_file else load_configured_json(SCANNER_RESULT_FILENAME)
-        _analysis_data = (
+        analysis_data = (
             load_scan_result(uploaded_analysis_file)
             if uploaded_analysis_file
             else load_configured_json(ANALYSIS_RESULT_FILENAME, required=False)
@@ -834,12 +1260,12 @@ def main() -> None:
 
     render_critical_alert(scan_data)
 
-    tab_overview, tab_findings, tab_attack = st.tabs([
-        "Overview", "Findings", "Attack Scenario"
+    tab_overview, tab_findings, tab_review, tab_attack = st.tabs([
+        "Overview", "Findings", "Review Queue", "Attack Scenario"
     ])
 
     with tab_overview:
-        render_overview(scan_data)
+        render_overview(scan_data, analysis_data)
 
     with tab_findings:
         with st.container(border=True):
@@ -847,8 +1273,11 @@ def main() -> None:
             st.caption("전체 점검 판정을 필터링하고 선택한 항목의 근거와 대응방안을 확인하세요.")
             render_findings_table(scan_data)
 
+    with tab_review:
+        render_review_queue(scan_data)
+
     with tab_attack:
-        render_attack_scenario_dummy(scan_data)
+        render_attack_scenarios(analysis_data)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,790 @@
+{
+  "source_hash": "7d6776d05233a33be08cccaa798b7062bf7abe0c61ceba6b58d3ec04d37ebff4",
+  "source_file": "sample_scan_result.json",
+  "model": "gpt-6.1-sol",
+  "generated_at": "2026-10-04T08:21:35.512870+00:00",
+  "statistics": {
+    "total_tasks": 69,
+    "unique_endpoints": 47,
+    "total_findings": 103,
+    "verdict_counts": {
+      "pass": 61,
+      "vulnerable": 29,
+      "review": 13
+    },
+    "scanner_candidate_counts": {
+      "portscan": 1,
+      "sqli": 22,
+      "xss": 14,
+      "authz": 22,
+      "directory_indexing": 4,
+      "fileio": 37,
+      "admin_exposure": 1,
+      "authn": 1,
+      "ssrf": 1
+    },
+    "vulnerable_type_counts": {
+      "sqli": 3,
+      "xss": 1,
+      "authz": 14,
+      "directory_indexing": 4,
+      "fileio": 5,
+      "admin_exposure": 1,
+      "ssrf": 1
+    },
+    "severity_counts": {
+      "HIGH": 27,
+      "MEDIUM": 2
+    },
+    "verified_vulnerable_count": 29
+  },
+  "analysis_validation": {
+    "verified_findings_sent": 29,
+    "scenario_candidates": 19,
+    "accepted_attack_scenarios": 4,
+    "rejected_attack_scenarios": 0
+  },
+  "analysis": {
+    "overall_risk": "HIGH",
+    "overall_assessment": "입력의 전체 위험도는 HIGH이며, 검증된 취약점은 29건으로 심각도 HIGH 27건, MEDIUM 2건입니다. 객체 수준 접근통제 취약점(IDOR/BOLA) 14건과 디렉터리 인덱싱(Directory Indexing) 4건이 확인되어 사용자별 데이터 및 파일 접근 경계의 개선이 중요합니다. 게시판 검색의 SQL Injection과 반사형 XSS(Reflected XSS), 업로드 파일 검증 우회 및 다운로드 파일 열거 문제도 확인되었습니다. 관리자 페이지의 비로그인 노출과 서버 측 요청 위조(SSRF)를 통한 내부 서비스 접근 증거가 있어 접근 제한과 서버의 외부 요청 통제도 우선 개선해야 합니다. 개별 취약점은 검증되었지만, 취약점 간 공격 체인이나 데이터 탈취·서버 코드 실행·관리자 권한 획득 등의 결과는 확인되지 않았으므로 추가 검증 필요입니다.",
+    "key_findings": [
+      {
+        "finding_id": "F001",
+        "scanner_id": "sqli",
+        "name": "SQL Injection",
+        "vulnerability_type": "sqli",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/qna",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "content",
+            "location": "query"
+          }
+        ],
+        "evidence": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+        "summary": "게시판 검색 GET 요청의 content 매개변수에서 반복 주입에 따른 MySQL 구문 오류가 노출되어 SQL Injection이 확인되었습니다.",
+        "impact": "데이터베이스 조회에 의도하지 않은 영향을 주거나 데이터가 노출될 가능성이 있습니다.",
+        "recommendation": "매개변수화된 쿼리(Parameterized Query)를 적용하고 데이터베이스 오류 상세 내용을 응답에서 제거하십시오.",
+        "validation_note": "데이터 접근 범위와 조회·변경 가능 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F002",
+        "scanner_id": "xss",
+        "name": "Reflected XSS",
+        "vulnerability_type": "xss",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/qna",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "content",
+            "location": "query"
+          }
+        ],
+        "evidence": "OK\" method=\"get\">\n      <input name=\"content\" aria-label=\"게시글 검색\" placeholder=\"검색어를 입력해주세요.\" value=\"\" autofocus onfocus=alert(1337) x=\"\" maxlength=\"200\">\n      <button class=\"search-icon\" type=\"submit\" aria-label=\"검색\"><img alt=\"\" src=\"",
+        "summary": "게시판 검색의 content 입력이 HTML 속성 및 이벤트 처리 구문으로 반영되는 반사형 XSS(Reflected XSS)가 확인되었습니다.",
+        "impact": "사용자가 해당 응답을 열면 브라우저에서 의도하지 않은 스크립트가 실행될 가능성이 있습니다.",
+        "recommendation": "HTML 속성 문맥에 맞는 출력 인코딩(Output Encoding)을 적용하고 안전한 템플릿 렌더링을 사용하십시오.",
+        "validation_note": "실제 사용자 환경에서의 실행 조건과 영향 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F003",
+        "scanner_id": "sqli",
+        "name": "SQL Injection",
+        "vulnerability_type": "sqli",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/qna?content=&page=1",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "content",
+            "location": "query"
+          }
+        ],
+        "evidence": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+        "summary": "page=1이 포함된 게시판 검색 GET 요청의 content 매개변수에서 SQL Injection에 따른 MySQL 오류 노출이 확인되었습니다.",
+        "impact": "검색 쿼리 동작이 변경되거나 데이터베이스 정보가 노출될 가능성이 있습니다.",
+        "recommendation": "페이지 조건과 관계없이 검색 처리 전반에 매개변수화된 쿼리를 적용하십시오.",
+        "validation_note": "데이터 조회·변경 가능 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F004",
+        "scanner_id": "sqli",
+        "name": "SQL Injection",
+        "vulnerability_type": "sqli",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/qna?content=&page=3",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "content",
+            "location": "query"
+          }
+        ],
+        "evidence": "반복 주입에서 MySQL 오류 노출: You have an error in your SQL syntax",
+        "summary": "page=3이 포함된 게시판 검색 GET 요청의 content 매개변수에서 SQL Injection에 따른 MySQL 오류 노출이 확인되었습니다.",
+        "impact": "검색 쿼리에 의도하지 않은 영향을 주거나 데이터가 노출될 가능성이 있습니다.",
+        "recommendation": "검색 처리의 쿼리 구성을 개선하고 데이터베이스 오류 응답을 일반화하십시오.",
+        "validation_note": "데이터 조회·변경 가능 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F005",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/mypage/my-information/2",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "email",
+            "location": "query"
+          },
+          {
+            "name": "path_id_1",
+            "location": "path"
+          },
+          {
+            "name": "phone",
+            "location": "query"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "개인정보 페이지에서 다른 사용자 요청이 성공하고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "사용자별로 제한되어야 하는 개인정보가 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "서버에서 요청 사용자와 대상 정보의 소유 관계를 확인하는 객체 수준 권한 검사를 적용하십시오.",
+        "validation_note": "응답에 포함된 개인정보 항목과 노출 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F006",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/",
+        "method": "GET",
+        "parameters": [],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "/uploads/에서 다른 사용자 요청이 성공하고 소유자 응답과 100.0% 일치하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "사용자별로 제한되어야 하는 업로드 영역의 응답이 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "업로드 영역에 서버 측 접근통제를 적용하고 요청 사용자의 접근 권한을 확인하십시오.",
+        "validation_note": "개별 파일의 접근 가능 여부와 보호 대상 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F007",
+        "scanner_id": "directory_indexing",
+        "name": "Directory Indexing",
+        "vulnerability_type": "directory_indexing",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/",
+        "method": "GET",
+        "parameters": [],
+        "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+        "summary": "/uploads/의 HTTP 200 응답에서 'Index of'가 확인되어 디렉터리 인덱싱(Directory Indexing)이 노출되었습니다.",
+        "impact": "디렉터리 내 항목이나 파일 구조가 노출되어 보호 대상 자원을 식별하기 쉬워질 수 있습니다.",
+        "recommendation": "웹 서버의 디렉터리 목록 기능을 비활성화하고 필요한 파일 접근만 허용하십시오.",
+        "validation_note": "목록에 포함된 항목과 개별 파일의 접근 가능 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F008",
+        "scanner_id": "fileio",
+        "name": "Extension Bypass - Double Extension",
+        "vulnerability_type": "fileio",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/write/qna",
+        "method": "POST",
+        "parameters": [
+          {
+            "name": "file",
+            "location": "body"
+          }
+        ],
+        "evidence": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+        "summary": "게시판 업로드에서 코드가 포함된 이중 확장자·폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 파일 검증 우회가 확인되었습니다.",
+        "impact": "허용 의도와 다른 내용의 파일이 저장·배포될 가능성이 있으며, 서버 측 실행 여부는 확인되지 않았습니다.",
+        "recommendation": "확장자 허용 목록과 실제 파일 형식 검증을 함께 적용하고 업로드 저장 영역의 실행을 차단하십시오.",
+        "validation_note": "저장 파일의 서버 측 실행 가능성과 후속 처리 방식은 추가 검증 필요."
+      },
+      {
+        "finding_id": "F009",
+        "scanner_id": "fileio",
+        "name": "Extension Bypass - Double Extension",
+        "vulnerability_type": "fileio",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/write/qna",
+        "method": "POST",
+        "parameters": [
+          {
+            "name": "file",
+            "location": "body"
+          }
+        ],
+        "evidence": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+        "summary": "게시판 업로드에서 코드가 포함된 이중 확장자·폴리글랏 파일의 저장 및 동일 내용 다운로드가 확인되었습니다.",
+        "impact": "파일 내용 검증을 통과해서는 안 되는 파일이 저장·배포될 가능성이 있습니다.",
+        "recommendation": "파일 내용과 확장자의 일관성을 검증하고 안전한 형식만 허용하십시오.",
+        "validation_note": "서버 측 코드 실행 여부와 후속 처리 영향은 추가 검증 필요."
+      },
+      {
+        "finding_id": "F010",
+        "scanner_id": "fileio",
+        "name": "Path Traversal in Filename",
+        "vulnerability_type": "fileio",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/write/qna",
+        "method": "POST",
+        "parameters": [
+          {
+            "name": "file",
+            "location": "body"
+          }
+        ],
+        "evidence": "파일명 미살균: 저장명에 경로구분자 잔존('../../fio_traversal.txt') → 디렉토리 이탈 가능",
+        "summary": "게시판 업로드 파일의 저장명에 경로 구분자가 남아 파일명 기반 경로 순회(Path Traversal) 위험이 확인되었습니다.",
+        "impact": "저장 경로 처리 방식에 따라 의도한 디렉터리 밖에 파일이 저장될 가능성이 있습니다.",
+        "recommendation": "사용자 제공 파일명 대신 서버에서 저장명을 생성하고 정규화된 최종 경로가 허용 디렉터리 안에 있는지 확인하십시오.",
+        "validation_note": "실제 디렉터리 이탈과 다른 파일의 생성·덮어쓰기 가능 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F011",
+        "scanner_id": "fileio",
+        "name": "Content Validation Bypass (Magic Bytes)",
+        "vulnerability_type": "fileio",
+        "severity": "MEDIUM",
+        "url": "http://13.125.233.51/my-class/board/write/qna",
+        "method": "POST",
+        "parameters": [
+          {
+            "name": "file",
+            "location": "query"
+          }
+        ],
+        "evidence": "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 다운로드되어 서버측 파일 내용 검증 우회가 확인됨",
+        "summary": "게시판 업로드에서 코드가 포함된 파일이 저장되고 동일 내용으로 다운로드되어 매직 바이트(Magic Bytes) 기반 내용 검증 우회가 확인되었습니다.",
+        "impact": "파일 형식 검사만으로 차단하지 못한 내용이 저장·배포될 가능성이 있습니다.",
+        "recommendation": "파일 헤더만 확인하지 말고 전체 형식의 유효성을 검증하며 가능한 형식은 안전하게 재인코딩하십시오.",
+        "validation_note": "검증 단계별 처리 방식과 저장 후 실행 가능성은 추가 검증 필요."
+      },
+      {
+        "finding_id": "F012",
+        "scanner_id": "fileio",
+        "name": "Unrestricted File Enumeration (Download)",
+        "vulnerability_type": "fileio",
+        "severity": "MEDIUM",
+        "url": "http://13.125.233.51/download/{id}",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "id",
+            "location": "query"
+          }
+        ],
+        "evidence": "예측 가능한 순차 ID로 인증 사용자에게 파일 91개가 연속 노출됨, 표본 UI에서 보이지 않은 파일 81개 포함 - 파일 ID 대입만으로 대량 다운로드 가능한 열거 취약점 확인",
+        "summary": "다운로드 기능에서 예측 가능한 순차 ID로 인증 사용자에게 파일 91개가 연속 노출되었으며, 표본 UI에 보이지 않은 파일 81개가 포함되었습니다.",
+        "impact": "화면에 표시되지 않는 파일까지 열거하고 대량 다운로드할 가능성이 있습니다.",
+        "recommendation": "각 다운로드 요청에 객체 수준 권한 검사를 적용하고 파일 식별자의 비예측성 및 요청량 제한을 보조 통제로 사용하십시오.",
+        "validation_note": "노출 파일의 소유 관계, 민감도 및 사용자별 허용 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F013",
+        "scanner_id": "admin_exposure",
+        "name": "Administrator Page Exposure",
+        "vulnerability_type": "admin_exposure",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/admin",
+        "method": "GET",
+        "parameters": [],
+        "evidence": "비로그인 상태에서 HTTP 200 응답이 반환되었으며, 관리자 페이지 식별 지표 4개가 확인되었습니다: data-active=\"admin\", 관리자 페이지, 관리자 대시보드, lab-admin-section",
+        "summary": "/admin에서 비로그인 상태로 HTTP 200 응답과 관리자 페이지 식별 지표 4개가 확인되었습니다.",
+        "impact": "관리자 화면의 구성이나 정보가 비로그인 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "관리자 페이지에 인증 및 관리자 권한 검사를 적용하고 필요한 사용자에게만 접근을 허용하십시오.",
+        "validation_note": "관리 기능 실행 가능 여부와 관리자 권한 획득 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F014",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/notice/1",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "공지 상세 페이지에서 다른 사용자 요청이 성공하고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "접근이 제한되어야 하는 공지 정보가 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "공지 객체별 접근 정책을 서버에서 검사하십시오.",
+        "validation_note": "공지의 공개 범위와 실제 노출 정보는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F015",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/task/1",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "과제 상세 페이지에서 다른 사용자 요청이 성공하고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "사용자별 접근 제한이 필요한 과제 정보가 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "과제 객체에 대한 사용자별 접근 권한을 서버에서 검사하십시오.",
+        "validation_note": "응답 내용과 허용 대상 사용자 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F016",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/pbl/1",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "PBL 상세 페이지에서 다른 사용자 요청이 성공하고 소유자 응답과 98.9% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "접근이 제한되어야 하는 PBL 정보가 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "대상 PBL 객체와 요청 사용자의 접근 권한을 검증하십시오.",
+        "validation_note": "공개 정책과 노출 정보의 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F017",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/my-class/board/qna/290",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "질의응답 상세 페이지에서 다른 사용자 요청이 성공하고 소유자 응답과 99.3% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "접근 제한이 필요한 게시글 내용이 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "게시글 조회 시 서버 측 객체 수준 권한 검사를 수행하십시오.",
+        "validation_note": "게시글 공개 정책과 실제 응답 내용은 추가 검증 필요."
+      },
+      {
+        "finding_id": "F018",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/customer/resources/1",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "자료 상세 페이지에서 다른 사용자 요청이 성공하고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "허용 범위를 벗어난 사용자에게 자료 정보가 노출될 가능성이 있습니다.",
+        "recommendation": "자료 객체별 접근 정책을 서버에서 일관되게 적용하십시오.",
+        "validation_note": "자료의 공개 여부와 보호 대상 정보는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F019",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/customer/faq/1",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "FAQ 상세 페이지에서 다른 사용자 요청이 성공하고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "사용자별 제한 대상 정보가 포함된 경우 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "FAQ의 공개·제한 정책을 명확히 하고 제한 대상에는 객체 수준 권한 검사를 적용하십시오.",
+        "validation_note": "FAQ의 공개 정책과 응답에 포함된 보호 대상 정보는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F020",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/customer/contact/22",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "문의 상세 페이지에서 다른 사용자 요청이 성공하고 소유자 응답과 99.2% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "다른 사용자의 문의 내용이나 관련 정보가 노출될 가능성이 있습니다.",
+        "recommendation": "문의 소유자 또는 허용된 역할만 조회할 수 있도록 서버 측 권한 검사를 적용하십시오.",
+        "validation_note": "노출된 문의 내용과 개인정보 포함 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F021",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/api/profiles/2",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "프로필 API에서 다른 사용자 요청이 성공하고 소유자 응답과 100.0% 일치하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "접근 제한 대상 프로필 정보가 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "API 요청마다 대상 프로필에 대한 객체 수준 권한을 검사하십시오.",
+        "validation_note": "프로필 응답 항목과 공개 허용 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F022",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/1/",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "/uploads/1/에서 다른 사용자 요청이 성공하고 소유자 응답과 100.0% 일치하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "사용자별 업로드 영역의 응답이 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "해당 업로드 영역에 요청 사용자와 대상 객체의 권한 관계를 확인하는 접근통제를 적용하십시오.",
+        "validation_note": "개별 파일 접근과 노출 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F023",
+        "scanner_id": "directory_indexing",
+        "name": "Directory Indexing",
+        "vulnerability_type": "directory_indexing",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/1/",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+        "summary": "/uploads/1/에서 HTTP 200 응답과 'Index of'가 확인되어 디렉터리 목록이 노출되었습니다.",
+        "impact": "해당 디렉터리 내 항목과 파일 구조를 확인할 가능성이 있습니다.",
+        "recommendation": "디렉터리 인덱싱을 비활성화하고 파일 제공에 필요한 접근만 허용하십시오.",
+        "validation_note": "목록 항목의 민감도와 개별 파일의 접근 가능 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F024",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/knowledge/",
+        "method": "GET",
+        "parameters": [],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "/uploads/knowledge/에서 다른 사용자 요청이 성공하고 소유자 응답과 100.0% 일치하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "접근 제한이 필요한 업로드 영역의 응답이 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "해당 영역에 서버 측 권한 검사를 적용하고 공개 파일과 제한 파일을 구분하십시오.",
+        "validation_note": "공개 정책과 개별 파일의 접근 가능 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F025",
+        "scanner_id": "directory_indexing",
+        "name": "Directory Indexing",
+        "vulnerability_type": "directory_indexing",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/knowledge/",
+        "method": "GET",
+        "parameters": [],
+        "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+        "summary": "/uploads/knowledge/에서 HTTP 200 응답과 'Index of'가 확인되어 디렉터리 목록이 노출되었습니다.",
+        "impact": "업로드 항목과 파일 구조가 노출될 가능성이 있습니다.",
+        "recommendation": "디렉터리 목록 기능을 비활성화하고 필요한 파일만 통제된 방식으로 제공하십시오.",
+        "validation_note": "목록 내용과 파일별 보호 필요성은 추가 검증 필요."
+      },
+      {
+        "finding_id": "F026",
+        "scanner_id": "ssrf",
+        "name": "Server-Side Request Forgery",
+        "vulnerability_type": "ssrf",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/pre-course/write",
+        "method": "POST",
+        "parameters": [
+          {
+            "name": "csrf_token",
+            "location": "form"
+          },
+          {
+            "name": "action",
+            "location": "form"
+          },
+          {
+            "name": "title",
+            "location": "form"
+          },
+          {
+            "name": "url",
+            "location": "form"
+          }
+        ],
+        "evidence": "대상 응답에서 내부 서비스 접근 증거 `SSRF SUCCESS - internal-service reached`를 확인했습니다.",
+        "summary": "/pre-course/write의 POST 요청 응답에서 내부 서비스 도달을 나타내는 증거가 확인되어 SSRF가 검증되었습니다.",
+        "impact": "서버가 의도하지 않은 내부 서비스에 요청을 전달할 수 있으며, 추가 정보 노출이나 기능 영향 가능성은 별도 확인이 필요합니다.",
+        "recommendation": "요청 대상에 허용 목록(Allowlist)을 적용하고 내부 주소 접근 및 서버의 불필요한 네트워크 통신을 제한하십시오.",
+        "validation_note": "접근 가능한 내부 서비스 범위와 정보 조회·상태 변경 가능 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F027",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/1/qna/",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "/uploads/1/qna/에서 다른 사용자 요청이 성공하고 소유자 응답과 100.0% 일치하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "해당 업로드 영역의 응답이 권한 범위를 벗어난 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "해당 디렉터리와 제공 자원에 사용자별 접근통제를 적용하십시오.",
+        "validation_note": "개별 파일의 접근 가능 여부와 보호 대상 범위는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F028",
+        "scanner_id": "directory_indexing",
+        "name": "Directory Indexing",
+        "vulnerability_type": "directory_indexing",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/1/qna/",
+        "method": "GET",
+        "parameters": [
+          {
+            "name": "path_id_1",
+            "location": "path"
+          }
+        ],
+        "evidence": "HTTP 200 응답에서 디렉터리 목록을 나타내는 'Index of'가 확인되어 디렉터리 인덱싱이 노출된 것으로 판단됩니다.",
+        "summary": "/uploads/1/qna/에서 HTTP 200 응답과 'Index of'가 확인되어 디렉터리 목록이 노출되었습니다.",
+        "impact": "디렉터리 내 업로드 항목과 파일 구조가 노출될 가능성이 있습니다.",
+        "recommendation": "해당 경로의 디렉터리 인덱싱을 비활성화하십시오.",
+        "validation_note": "목록에 포함된 정보와 개별 파일 접근 가능 여부는 추가 검증 필요."
+      },
+      {
+        "finding_id": "F029",
+        "scanner_id": "authz",
+        "name": "IDOR/BOLA",
+        "vulnerability_type": "authz",
+        "severity": "HIGH",
+        "url": "http://13.125.233.51/uploads/knowledge/0e171e0ab2604cad9e4ced02270372d9.png",
+        "method": "GET",
+        "parameters": [],
+        "evidence": "다른 사용자 요청이 성공했고 소유자 응답과 100.0% 유사하여 IDOR/BOLA가 확인되었습니다.",
+        "summary": "검증 대상 PNG 파일에서 다른 사용자 요청이 성공하고 소유자 응답과 100.0% 일치하여 IDOR/BOLA가 확인되었습니다.",
+        "impact": "접근 제한 대상 파일 내용이 다른 사용자에게 노출될 가능성이 있습니다.",
+        "recommendation": "파일을 제공할 때에도 서버에서 소유 관계와 공개 정책에 따른 권한 검사를 수행하십시오.",
+        "validation_note": "해당 파일의 공개 정책과 내용의 민감도는 추가 검증 필요."
+      }
+    ],
+    "attack_scenarios": [
+      {
+        "candidate_ref": "C002",
+        "title": "업로드 영역의 권한 통제 미흡과 목록 노출에 따른 자원 식별",
+        "scenario_status": "possible",
+        "confidence": "medium",
+        "evidence_refs": [
+          "F006",
+          "F007"
+        ],
+        "related_vulnerability_types": [
+          "authz",
+          "directory_indexing"
+        ],
+        "related_endpoints": [
+          "http://13.125.233.51/uploads/"
+        ],
+        "scenario": "/uploads/에서 다른 사용자 요청에 소유자와 동일한 응답이 제공되고 디렉터리 목록도 노출되었습니다. 두 문제가 같은 응답에 적용되는 경우, 접근이 제한되어야 하는 사용자가 해당 영역의 목록을 확인하고 자원을 식별할 가능성이 있습니다. 취약점 간 공격 흐름 자체는 검증되지 않았습니다.",
+        "potential_impact": "해당 영역의 파일명이나 구조가 노출되고 보호 대상 자원의 식별이 쉬워질 수 있습니다.",
+        "required_conditions": "동일 사용자 권한 조건에서 목록이 노출되는지, 목록 항목이 보호 대상인지 추가 검증 필요. 개별 파일의 내용 접근이나 다운로드 가능 여부도 추가 검증 필요."
+      },
+      {
+        "candidate_ref": "C003",
+        "title": "사용자별 업로드 영역의 목록 노출",
+        "scenario_status": "possible",
+        "confidence": "medium",
+        "evidence_refs": [
+          "F022",
+          "F023"
+        ],
+        "related_vulnerability_types": [
+          "authz",
+          "directory_indexing"
+        ],
+        "related_endpoints": [
+          "http://13.125.233.51/uploads/1/"
+        ],
+        "scenario": "/uploads/1/에서 확인된 IDOR/BOLA와 디렉터리 인덱싱이 함께 적용될 경우, 접근 권한이 없는 사용자가 해당 디렉터리의 항목을 확인할 가능성이 있습니다. 다른 엔드포인트나 파일 접근과의 연계는 확인되지 않았습니다.",
+        "potential_impact": "사용자별로 제한되어야 하는 파일명과 디렉터리 구조가 노출될 가능성이 있습니다.",
+        "required_conditions": "해당 영역의 소유 관계와 접근 정책, 다른 사용자에게 실제로 제공되는 목록 내용을 추가 검증 필요."
+      },
+      {
+        "candidate_ref": "C004",
+        "title": "질의응답 업로드 영역의 접근 경계 및 목록 노출",
+        "scenario_status": "possible",
+        "confidence": "medium",
+        "evidence_refs": [
+          "F027",
+          "F028"
+        ],
+        "related_vulnerability_types": [
+          "authz",
+          "directory_indexing"
+        ],
+        "related_endpoints": [
+          "http://13.125.233.51/uploads/1/qna/"
+        ],
+        "scenario": "/uploads/1/qna/에서 다른 사용자에게 소유자와 동일한 응답이 제공되고 디렉터리 목록이 노출되었습니다. 같은 접근 조건에서 두 문제가 작용하면 사용자별 접근 경계를 넘어 업로드 항목을 식별할 가능성이 있습니다. 개별 파일 접근까지 이어지는 흐름은 검증되지 않았습니다.",
+        "potential_impact": "해당 디렉터리의 파일명과 구성 정보가 노출될 가능성이 있습니다.",
+        "required_conditions": "권한이 다른 사용자에게 제공되는 목록의 내용과 해당 항목의 보호 정책은 추가 검증 필요."
+      },
+      {
+        "candidate_ref": "C005",
+        "title": "knowledge 업로드 영역의 목록 정보 노출",
+        "scenario_status": "possible",
+        "confidence": "medium",
+        "evidence_refs": [
+          "F024",
+          "F025"
+        ],
+        "related_vulnerability_types": [
+          "authz",
+          "directory_indexing"
+        ],
+        "related_endpoints": [
+          "http://13.125.233.51/uploads/knowledge/"
+        ],
+        "scenario": "/uploads/knowledge/에서 IDOR/BOLA와 디렉터리 인덱싱이 확인되었습니다. 해당 영역이 제한된 사용자만 접근하도록 설계되었다면, 다른 사용자가 목록을 통해 업로드 자원을 식별하는 흐름이 가능할 수 있습니다. 파일 내용 접근과의 연계는 검증되지 않았습니다.",
+        "potential_impact": "공개 대상이 아닌 파일명이나 디렉터리 구조가 노출될 가능성이 있습니다.",
+        "required_conditions": "영역의 공개 정책, 사용자별 접근 범위 및 동일 권한 조건에서의 목록 노출 여부는 추가 검증 필요."
+      }
+    ],
+    "priority_actions": [
+      {
+        "priority": 1,
+        "title": "객체·파일 접근통제 강화 및 디렉터리 목록 차단",
+        "reason": "여러 페이지와 API 및 업로드 영역에서 IDOR/BOLA가 확인되었고, 디렉터리 목록 노출과 다운로드 파일 열거도 확인되어 접근 경계 전반의 개선이 필요합니다.",
+        "related_finding_ids": [
+          "F005",
+          "F006",
+          "F007",
+          "F012",
+          "F014",
+          "F015",
+          "F016",
+          "F017",
+          "F018",
+          "F019",
+          "F020",
+          "F021",
+          "F022",
+          "F023",
+          "F024",
+          "F025",
+          "F027",
+          "F028",
+          "F029"
+        ]
+      },
+      {
+        "priority": 2,
+        "title": "서버 측 요청 대상과 내부 서비스 접근 제한",
+        "reason": "SSRF로 내부 서비스에 도달한 증거가 확인되어 서버의 요청 대상과 네트워크 접근 범위를 제한해야 합니다.",
+        "related_finding_ids": [
+          "F026"
+        ]
+      },
+      {
+        "priority": 3,
+        "title": "게시판 검색 쿼리 및 출력 처리 개선",
+        "reason": "같은 검색 영역에서 SQL Injection과 반사형 XSS가 확인되어 데이터베이스 쿼리 처리와 브라우저 출력 처리를 각각 개선해야 합니다.",
+        "related_finding_ids": [
+          "F001",
+          "F002",
+          "F003",
+          "F004"
+        ]
+      },
+      {
+        "priority": 4,
+        "title": "업로드 파일 내용과 저장 경로 검증 강화",
+        "reason": "파일 내용 검증 우회와 저장명 내 경로 구분자 잔존이 확인되어 허용하지 않은 파일 저장 및 저장 경로 이탈 가능성을 줄여야 합니다.",
+        "related_finding_ids": [
+          "F008",
+          "F009",
+          "F010",
+          "F011"
+        ]
+      },
+      {
+        "priority": 5,
+        "title": "관리자 페이지의 인증·권한 검사 적용",
+        "reason": "비로그인 상태에서 관리자 페이지 응답과 식별 지표가 확인되어 관리자 영역의 노출을 제한해야 합니다.",
+        "related_finding_ids": [
+          "F013"
+        ]
+      }
+    ],
+    "vulnerability_analysis": {
+      "admin_exposure": "F013은 비로그인 상태의 HTTP 200 응답과 관리자 페이지 식별 지표 4개를 근거로 관리자 페이지 노출이 확인된 사례입니다. 관리자 화면의 접근 제한을 개선해야 하지만, 해당 근거만으로 관리자 기능 실행이나 관리자 권한 획득을 확정할 수 없습니다. 기능별 인증·권한 적용 여부는 추가 검증 필요입니다.",
+      "authz": "검증된 IDOR/BOLA는 14건이며, 다른 사용자 요청의 성공과 소유자 응답 대비 높은 유사도가 근거로 제시되었습니다. 개인정보, 게시글, 프로필 API 및 업로드 자원에 걸쳐 서버 측 객체 수준 권한 검사가 필요합니다. 응답 유사도만으로 모든 응답에 민감정보가 포함되었다고 단정할 수 없으므로, 각 자원의 공개 정책과 실제 노출 내용은 추가 검증 필요입니다.",
+      "directory_indexing": "F007, F023, F025, F028은 각 업로드 디렉터리의 HTTP 200 응답에서 'Index of'가 확인된 사례입니다. 각 경로에는 같은 후보 그룹 내 IDOR/BOLA 근거도 있어 목록 정보 노출 가능성을 함께 검토할 수 있으나, 개별 파일 접근이나 다운로드까지 검증된 것은 아닙니다. 디렉터리 목록을 비활성화하고 파일 접근통제를 별도로 적용해야 합니다.",
+      "fileio": "F008, F009, F011은 코드가 포함된 이중 확장자·폴리글랏 파일의 저장 및 동일 내용 다운로드를 근거로 파일 검증 우회가 확인된 사례입니다. F010은 저장명에 경로 구분자가 남아 디렉터리 이탈 가능성이 제시되었지만 실제 이탈은 추가 검증 필요입니다. F012는 예측 가능한 순차 ID로 인증 사용자에게 파일 91개가 연속 노출된 다운로드 열거 사례입니다. 업로드 형식 검증, 서버 생성 저장명, 저장 경로 제한 및 다운로드별 권한 검사가 필요하며, 서버 측 코드 실행이나 실제 데이터 탈취는 확인되지 않았습니다.",
+      "sqli": "F001, F003, F004는 게시판 검색의 content 매개변수에서 반복 주입 시 MySQL 구문 오류가 노출된 사례입니다. 페이지 조건이 다른 요청에서도 확인되었으므로 해당 검색 처리 전반에 매개변수화된 쿼리를 적용해야 합니다. 증거는 SQL Injection과 오류 노출을 뒷받침하지만, 데이터베이스 내용 조회·변경이나 데이터 탈취 결과는 추가 검증 필요입니다.",
+      "ssrf": "F026은 응답에서 내부 서비스 도달을 나타내는 증거가 확인된 SSRF 사례입니다. 서버 측 요청 대상의 허용 목록과 내부 네트워크 접근 제한을 적용해야 합니다. 내부 서비스 접근은 증거로 뒷받침되지만, 접근 가능한 서비스 범위와 정보 조회·상태 변경 등 후속 영향은 추가 검증 필요입니다.",
+      "xss": "F002는 검색 입력이 HTML 속성 및 이벤트 처리 구문으로 반영된 반사형 XSS 사례입니다. 입력값이 출력되는 문맥에 맞는 인코딩과 안전한 템플릿 처리가 필요합니다. 실제 사용자 환경에서의 실행 조건과 후속 영향은 추가 검증 필요이며, 같은 검색 영역의 SQL Injection과 공격 체인이 성립한다고 판단할 근거는 없습니다."
+    },
+    "general_recommendations": [
+      "인증 여부와 별개로 모든 보호 대상 객체에 서버 측 권한 검사(Authorization)를 적용하고, 기본 거부(Deny by Default) 원칙으로 접근 정책을 관리하십시오.",
+      "웹 페이지, API, 정적 업로드 파일 및 다운로드 기능에 동일한 접근 정책이 적용되는지 점검하고 사용자 역할·소유 관계별 회귀 테스트를 마련하십시오.",
+      "사용자 입력을 SQL 문자열에 직접 결합하지 말고 매개변수화된 쿼리를 사용하며, 출력에는 HTML 문맥별 인코딩을 적용하십시오.",
+      "업로드는 허용 형식의 실질적 유효성 검증, 서버 생성 저장명, 저장 경로 제한 및 실행 차단을 함께 적용하십시오.",
+      "디렉터리 인덱싱을 비활성화하고 파일 목록 제공이 필요한 경우에도 접근 권한이 확인된 항목만 반환하십시오.",
+      "서버 측 URL 요청은 허용 대상만 처리하고, 실제 연결 대상과 리디렉션 처리에도 동일한 제한을 적용하며 네트워크 수준의 통신 제한을 병행하십시오.",
+      "관리자 영역은 인증 및 역할 기반 권한 검사(Role-Based Access Control)를 거친 사용자에게만 제공하십시오.",
+      "조치 후 검증된 요청 조건으로 재진단하고, 실제 노출 정보·저장 경로 이탈·관리 기능 실행·취약점 간 연계는 별도 검증 대상으로 구분하십시오."
+    ]
+  }
+}
