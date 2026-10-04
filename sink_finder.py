@@ -27,7 +27,7 @@ FLAG_PATTERN = re.compile(r"(?i)^(?:secret|private|visibility|owner|public)$")
 URL_PATTERN = re.compile(r"(?i)^(?:url|uri|link|callback|webhook|redirect|image|thumbnail)$")
 PAGINATION_PATTERN = re.compile(r"(?i)^(?:page|page_size|pagesize|per_page|perpage|limit|offset|cursor)$")
 SQLI_LOOKUP_PATTERN = re.compile(r"(?i)^(?:q|query|search|keyword|content|term|filter|lookup|id|[a-z0-9]+_id)$")
-OBJECT_PATTERN = re.compile(r"(?i)(?:user|profile|information|contact|inquiry|post|board|file|attachment|document)")
+OBJECT_PATTERN = re.compile(r"(?i)(?:user|profile|information|contact|inquiry|account|file|attachment|document)")
 UNSAFE_PATTERN = re.compile(r"(?i)(?:^|[/_=-])(?:logout|signout|delete|remove|destroy|revoke|reset|unsubscribe)(?:$|[/_?&=-])")
 STATIC_PATTERN = re.compile(r"(?i)\.(?:css|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|pdf|zip|mp[34]|php|py|cgi)$")
 
@@ -160,10 +160,12 @@ def _classify(endpoint):
                            for p in endpoint["parameters"])
     for parameter in endpoint["parameters"]:
         name, kind = parameter["name"], parameter["input_type"]
-        if parameter["location"] == "path" or re.search(r"(?i)(?:^id$|_?id$)", name):
+        if ((parameter["location"] == "path" or re.search(r"(?i)(?:^id$|_?id$)", name))
+                and path.rstrip("/") != "/login"
+                and OBJECT_PATTERN.search(path + "/" + name)):
             candidates.append({"type": "idor", "parameter": name, "tools": ["authz"],
-                               "confidence": "medium" if OBJECT_PATTERN.search(path + name) else "low",
-                               "reason": "객체 ID로 사용할 수 있는 경로 또는 파라미터"})
+                               "confidence": "medium",
+                               "reason": "사용자 소유 가능성이 있는 객체 ID 경로 또는 파라미터"})
         if object_reference and FLAG_PATTERN.fullmatch(name):
             candidates.append({"type": "access_control", "subtype": "query_flag_bypass", "parameter": name,
                                "tools": ["authz"], "reason": "객체 URL에 접근 제어와 관련된 파라미터가 있음"})
@@ -194,7 +196,7 @@ def _classify(endpoint):
     if path.rstrip("/") == "/admin":
         candidates.append({"type": "missing_admin_auth", "tools": ["admin_exposure", "authn"],
                            "reason": "관리 경로 후보. 비로그인 접근과 인증 누락은 미검증"})
-    if endpoint.get("directory_listing"):
+    if endpoint.get("directory_listing") and not endpoint.get("directory_listing_parent"):
         candidates.append({"type": "directory_indexing", "tools": ["directory_indexing"],
                            "reason": "응답 제목에 Index of가 있음"})
     if path == "/":
@@ -207,6 +209,24 @@ def _classify(endpoint):
         candidate["verified"] = False
     endpoint["sink_candidates"] = candidates
     endpoint["endpoint_template"] = _endpoint_template(url)
+
+
+def _collapse_directory_listings(records):
+    """같은 공개 목록에서 파생된 하위 디렉터리는 최상위 노출 한 건으로 묶는다."""
+    roots = {}
+    listings = sorted(
+        (endpoint for endpoint in records.values() if endpoint.get("directory_listing")),
+        key=lambda endpoint: (urlsplit(endpoint["url"]).path.count("/"), endpoint["url"]),
+    )
+    for endpoint in listings:
+        parts = urlsplit(endpoint["url"])
+        path = parts.path if parts.path.endswith("/") else parts.path + "/"
+        origin = (parts.scheme, parts.netloc)
+        parent = next((root for root in roots.get(origin, []) if path.startswith(root)), None)
+        if parent:
+            endpoint["directory_listing_parent"] = parent
+        else:
+            roots.setdefault(origin, []).append(path)
 
 
 def _javascript_endpoints(script, page):
@@ -453,6 +473,7 @@ def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] 
                     except (URLError, OSError, ValueError):
                         scripts[script_url] = ""
                 javascript(scripts[script_url], page, url, depth, queue)
+    _collapse_directory_listings(records)
     for endpoint in records.values():
         if "crawl_state" not in endpoint:
             endpoint["crawl_state"] = "discovered"

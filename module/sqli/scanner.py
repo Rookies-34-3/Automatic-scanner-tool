@@ -254,6 +254,7 @@ class Scanner:
                 })
                 finding.update(
                     result="SAFE",
+                    severity="NONE",
                     evidence=f"따옴표 SQLi 입력이 반복해서 HTTP {statuses} 응답으로 거부됨",
                 )
                 return finding
@@ -299,7 +300,11 @@ class Scanner:
                 raise ScanError("Boolean 페이로드에 대한 정상 응답을 확보하지 못했습니다.")
             # Boolean 증거가 없어도 앞서 확정한 오류 기반 취약 판정을 낮추지 않습니다.
             if finding["result"] != "VULNERABLE":
-                finding.update(result="SAFE", evidence="실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지")
+                finding.update(
+                    result="SAFE",
+                    severity="NONE",
+                    evidence="실행한 Error/Boolean 검사 범위에서 SQL 인젝션 증거 미탐지",
+                )
         except ScanError as exc:
             if boolean_started:
                 # 실패는 양호 증거가 아닙니다. 추가 검사 중단 사유를 별도 기록합니다.

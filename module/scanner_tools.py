@@ -9,7 +9,7 @@ from copy import deepcopy
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
 
@@ -44,6 +44,14 @@ SQLI_CONTROL_PARAMETER_NAMES = {
 }
 SQLI_LOOKUP_PARAMETER = re.compile(
     r"(?i)^(?:q|query|search|keyword|content|term|filter|lookup|id|[a-z0-9]+_id)$"
+)
+AUTHZ_ACCESS_FLAGS = {"secret", "private", "visibility", "owner", "public"}
+AUTHZ_PROFILE_PATH = re.compile(
+    r"(?i)(?:/mypage/|/api/(?:profiles?|users?)/|/(?:profiles?|accounts?)/)"
+)
+AUTHZ_CONTACT_PATH = re.compile(r"(?i)/(?:contact|inquir(?:y|ies))(?:/|$)")
+AUTHZ_SECRET_MARKER = re.compile(
+    r"(?i)(?:aria-label=[\"']비밀글[\"']|class=[\"'][^\"']*(?:secret|private|lock)[^\"']*[\"'])"
 )
 
 
@@ -190,7 +198,7 @@ def scan_reflected_xss(url: str, method: str, parameters: Any, session_cookie: A
 
 
 def scan_directory_indexing(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
-    raw = run_directory_indexing_native(url, method, public_parameters(parameters), cookie_dict(session_cookie))
+    raw = run_directory_indexing_native(url, method, public_parameters(parameters), {})
     return _normalize_many([raw], "directory_indexing", "Directory Indexing", url, method, parameters)
 
 
@@ -304,6 +312,35 @@ def _response_fingerprint(response: requests.Response) -> dict[str, Any]:
     }
 
 
+def _authz_flag_bypass_request(url: str, parameters: Any):
+    """접근 제어 쿼리 플래그를 제거한 비교 요청을 만든다."""
+    normalized = normalize_parameters(parameters)
+    parts = urlsplit(url)
+    flag_names = {
+        name.lower()
+        for name, _ in parse_qsl(parts.query, keep_blank_values=True)
+        if name.lower() in AUTHZ_ACCESS_FLAGS
+    }
+    flag_names.update(
+        item["name"].lower()
+        for item in normalized
+        if item["location"] == "query" and item["name"].lower() in AUTHZ_ACCESS_FLAGS
+    )
+    if not flag_names:
+        return None
+    query = urlencode([
+        (name, value)
+        for name, value in parse_qsl(parts.query, keep_blank_values=True)
+        if name.lower() not in flag_names
+    ])
+    clean_url = urlunsplit(parts._replace(query=query))
+    clean_parameters = [
+        item for item in normalized
+        if not (item["location"] == "query" and item["name"].lower() in flag_names)
+    ]
+    return clean_url, clean_parameters, sorted(flag_names)
+
+
 def scan_authn(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
     options = options or {}
     timeout = float(options.get("auth_timeout", options.get("timeout", DEFAULT_AUTH_TIMEOUT)))
@@ -410,12 +447,18 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
     owner = requests.Session()
     attacker = requests.Session()
     anonymous = requests.Session()
+    bypass_response = None
+    bypass_flags = []
     owner.cookies.update(owner_cookies)
     attacker.cookies.update(attacker_cookies)
     try:
         owner_response = _request(owner, method, url, parameters, timeout)
         attacker_response = _request(attacker, method, url, parameters, timeout)
         anonymous_response = _request(anonymous, method, url, parameters, timeout)
+        bypass = _authz_flag_bypass_request(url, parameters)
+        if bypass and _blocked_response(attacker_response):
+            bypass_url, bypass_parameters, bypass_flags = bypass
+            bypass_response = _request(attacker, method, bypass_url, bypass_parameters, timeout)
     except requests.Timeout:
         return [review_finding(
             "authz", "IDOR/BOLA", url, method, parameters,
@@ -433,6 +476,8 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
 
     owner_blocked = _blocked_response(owner_response)
     attacker_blocked = _blocked_response(attacker_response)
+    path = urlsplit(url).path
+    finding_name = "IDOR/BOLA"
     if owner_blocked or not 200 <= owner_response.status_code < 300:
         vuln = "REVIEW"
         severity = "INFO"
@@ -441,6 +486,35 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
             "교차 계정 비교를 완료하지 못했습니다."
         )
         similarity = 0.0
+    elif bypass_response is not None:
+        bypass_blocked = _blocked_response(bypass_response)
+        if not bypass_blocked and 200 <= bypass_response.status_code < 300:
+            similarity = SequenceMatcher(
+                None,
+                owner_response.text[:MAX_AUTH_COMPARE_CHARS],
+                bypass_response.text[:MAX_AUTH_COMPARE_CHARS],
+            ).ratio()
+            if AUTHZ_SECRET_MARKER.search(owner_response.text) and similarity >= 0.90:
+                vuln = "VULNERABLE"
+                severity = "HIGH"
+                finding_name = "Secret Post Authorization Bypass"
+                reason = (
+                    f"다른 사용자의 정상 요청은 {attacker_blocked}로 차단됐지만 "
+                    f"{', '.join(bypass_flags)} 쿼리를 제거하자 HTTP {bypass_response.status_code}로 "
+                    f"동일한 비밀글({similarity:.1%} 유사)에 접근했습니다."
+                )
+            else:
+                vuln = "REVIEW"
+                severity = "INFO"
+                reason = (
+                    f"접근 제어 쿼리를 제거한 요청이 HTTP {bypass_response.status_code}로 성공했지만 "
+                    "비밀 자원임을 확인할 표시가 없어 수동 확인이 필요합니다."
+                )
+        else:
+            vuln = "PASS"
+            severity = "NONE"
+            similarity = 0.0
+            reason = f"다른 사용자 요청과 접근 제어 쿼리 제거 요청이 모두 차단되었습니다 ({attacker_blocked})."
     elif attacker_blocked:
         vuln = "PASS"
         severity = "NONE"
@@ -452,23 +526,53 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
             owner_response.text[:MAX_AUTH_COMPARE_CHARS],
             attacker_response.text[:MAX_AUTH_COMPARE_CHARS],
         ).ratio()
-        if len(owner_response.content) >= 80 and similarity >= 0.90:
+        anonymous_success = (
+            not _blocked_response(anonymous_response)
+            and 200 <= anonymous_response.status_code < 300
+        )
+        same_anonymous_content = (
+            _response_fingerprint(owner_response)["body_hash"]
+            == _response_fingerprint(anonymous_response)["body_hash"]
+        )
+        if (path.startswith("/uploads/") and not path.endswith("/")
+                and anonymous_success and same_anonymous_content):
+            vuln = "VULNERABLE"
+            severity = "HIGH"
+            finding_name = "Missing File Access Control"
+            reason = (
+                "로그인하지 않은 요청도 저장된 파일을 동일한 내용으로 내려받아 "
+                "파일 접근 권한 누락이 확인되었습니다."
+            )
+        elif AUTHZ_PROFILE_PATH.search(path) and len(owner_response.content) >= 80 and similarity >= 0.90:
             vuln = "VULNERABLE"
             severity = "HIGH"
             reason = (
-                f"다른 사용자 요청이 성공했고 소유자 응답과 {similarity:.1%} 유사하여 "
-                "IDOR/BOLA가 확인되었습니다."
+                f"다른 사용자가 사용자 정보 경로에 성공적으로 접근했고 소유자 응답과 "
+                f"{similarity:.1%} 유사하여 IDOR/BOLA가 확인되었습니다."
             )
+        elif AUTHZ_CONTACT_PATH.search(path):
+            if AUTHZ_SECRET_MARKER.search(owner_response.text) and similarity >= 0.90:
+                vuln = "VULNERABLE"
+                severity = "HIGH"
+                finding_name = "Secret Post Authorization Bypass"
+                reason = (
+                    f"다른 사용자가 비밀글 표지가 있는 문의에 접근했고 소유자 응답과 "
+                    f"{similarity:.1%} 유사하여 권한 검증 우회가 확인되었습니다."
+                )
+            else:
+                vuln = "PASS"
+                severity = "NONE"
+                reason = "비밀글 표지가 없는 공유 문의여서 다른 사용자의 조회를 IDOR로 판정하지 않았습니다."
         else:
             vuln = "REVIEW"
-            severity = "MEDIUM"
+            severity = "INFO"
             reason = (
                 f"다른 사용자 요청이 HTTP {attacker_response.status_code}로 성공했지만 "
-                f"응답 유사도는 {similarity:.1%}여서 수동 확인이 필요합니다."
+                f"소유자 전용 자원이라는 증거가 없어 수동 확인이 필요합니다 (응답 유사도 {similarity:.1%})."
             )
     else:
         vuln = "REVIEW"
-        severity = "LOW"
+        severity = "INFO"
         similarity = 0.0
         reason = f"다른 사용자 요청이 HTTP {attacker_response.status_code}를 반환했습니다."
 
@@ -485,6 +589,10 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
             "anonymous_blocked": _blocked_response(anonymous_response),
         },
     }
+    if bypass_response is not None:
+        raw["details"]["flag_removed"] = bypass_flags
+        raw["details"]["flag_bypass"] = _response_fingerprint(bypass_response)
+    raw["name"] = finding_name
     return _normalize_many([raw], "authz", "IDOR/BOLA", url, method, parameters)
 
 
