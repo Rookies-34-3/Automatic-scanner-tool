@@ -1,4 +1,5 @@
 import unittest
+import runpy
 import json
 import re
 from email.message import Message
@@ -15,6 +16,8 @@ import openai_module
 import report_writer
 import sink_finder
 
+
+RUN_PATH = runpy.run_path
 
 APP = Path(__file__).resolve().parents[1] / "streamlit_app.py"
 
@@ -55,6 +58,9 @@ def analysis_report(payload, session_cookie="", scanner_options=None, on_progres
 
 class StreamlitFlowTest(unittest.TestCase):
     def setUp(self):
+        dashboard_patch = patch("runpy.run_path")
+        dashboard_patch.start()
+        self.addCleanup(dashboard_patch.stop)
         temporary = TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         writer_path = Path(temporary.name) / "report_writer.py"
@@ -286,6 +292,7 @@ class StreamlitFlowTest(unittest.TestCase):
         with TemporaryDirectory() as directory:
             entry = Path(directory) / "streamlit_app.py"
             entry.write_text(APP.read_text(encoding="utf-8"), encoding="utf-8")
+            (Path(directory) / "dashboard.css").write_text("", encoding="utf-8")
             (Path(directory) / "app.py").write_text(
                 'import json\n'
                 'import streamlit as st\n'
@@ -303,7 +310,8 @@ class StreamlitFlowTest(unittest.TestCase):
             app.session_state["scan_target_url"] = "http://127.0.0.1:8080/"
             app.session_state["openai_sinks"] = {"groups": [{}]}
             with patch("importlib.reload", side_effect=lambda module: module), \
-                    patch.object(openai_module, "analyze_sinks", side_effect=analysis_report) as analyze:
+                    patch.object(openai_module, "analyze_sinks", side_effect=analysis_report) as analyze, \
+                    patch("runpy.run_path", side_effect=RUN_PATH):
                 app.run()
                 app.run()
                 analyze.assert_called_once()
@@ -313,6 +321,26 @@ class StreamlitFlowTest(unittest.TestCase):
             self.assertFalse(app.table)
             self.assertFalse(app.dataframe)
             self.assertEqual(app.session_state["scan_report_path"], app.session_state["analysis_result"]["json_path"])
+
+    def test_merged_dashboard_reads_latest_scan_and_has_one_brand_bar(self):
+        app = AppTest.from_file(str(APP))
+        app.session_state["show_report"] = True
+        app.session_state["show_analysis"] = True
+        app.session_state["analysis_pending"] = True
+        app.session_state["scan_target_url"] = "http://127.0.0.1:8080/"
+        app.session_state["openai_sinks"] = {"groups": [{}]}
+        with patch("importlib.reload", side_effect=lambda module: module), \
+                patch.object(openai_module, "analyze_sinks", side_effect=analysis_report) as analyze, \
+                patch("runpy.run_path", side_effect=RUN_PATH):
+            app.run()
+            app.run()
+            analyze.assert_called_once()
+        self.assertFalse(app.exception)
+        self.assertFalse(app.error)
+        self.assertEqual([tab.label for tab in app.tabs], ["Overview", "Findings", "Review Queue", "Attack Scenario"])
+        self.assertTrue(Path(app.session_state["scan_report_path"]).exists())
+        brands = [item for item in app.get("html") if '<header class="rookiscan-topbar">' in item.proto.body]
+        self.assertEqual(len(brands), 1)
 
 
 if __name__ == "__main__":

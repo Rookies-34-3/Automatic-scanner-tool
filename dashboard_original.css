@@ -183,22 +183,3 @@ button[kind="primary"] { background: #246ec7; border-color: #246ec7; color: whit
     .scenario-card-header { align-items: flex-start; flex-wrap: wrap; }
     .scenario-badges { width: 100%; justify-content: flex-start; padding-left: 3.1rem; }
 }
-
-/* 밝은 테마의 표 배경을 유지합니다. */
-:root { color-scheme: light; }
-[data-testid="stDataFrame"] { background: #fff; }
-[data-testid="stTable"] { background: #fff; color: #17344b; }
-[data-testid="stTable"] th { background: #eef3f8; color: #17344b; }
-
-/* 탐색 화면도 대시보드와 같은 카드와 입력 스타일을 사용합니다. */
-.scan-description { color: #70869d; font-size: .9rem; margin: .25rem 0 1.5rem; line-height: 1.6; }
-.scan-card-heading { color: #17364e; font-size: 1rem; font-weight: 750; margin-bottom: .75rem; }
-.st-key-scan_setup, .st-key-sink_results { background: #fff; border-radius: 10px; }
-.st-key-scan_setup { padding: .6rem; }
-.st-key-scan_setup [data-testid="stTextInput"] input { background: #f8fafc; color: #17344b; }
-.st-key-scan_setup [data-testid="stTextInput"] [data-baseweb="input"] { border-color: #d4dee7; border-radius: 7px; }
-.st-key-scan_setup [data-testid="stButton"] { margin-top: .65rem; }
-.scan-step { display: flex; align-items: center; gap: .75rem; padding: .8rem .75rem; margin: .4rem 0; border: 1px solid transparent; border-radius: 8px; color: #8094a7; font-size: .82rem; }
-.scan-step span { font-size: .68rem; font-weight: 800; }
-.scan-step.active { background: #edf4fc; border-color: #d4e4f6; color: #246ec7; font-weight: 750; }
-.scan-step.complete { color: #138675; }

@@ -14,8 +14,8 @@ from openai import OpenAI
 
 # 연동 파일 설정: 실제 파일명이 확정되면 아래 값만 변경하면 됩니다.
 APP_DIR = Path(__file__).resolve().parent
-SCANNER_RESULT_FILENAME = "output/scan-results.json"
-ANALYSIS_RESULT_FILENAME = "output/analysis.json"
+SCANNER_RESULT_FILENAME = "scan-results-13.125.233.51-20261004-101838-1263661f.json"
+ANALYSIS_RESULT_FILENAME = "analysis.json"
 REPORT_MODULE_NAME = "report"
 REPORT_FUNCTION_NAME = "run"
 
@@ -1221,8 +1221,7 @@ def main() -> None:
 
     try:
         # 업로드 파일이 있으면 우선 사용하고, 없으면 상단에 지정된 파일을 자동으로 읽습니다.
-        result_path = st.session_state.get("scan_report_path") or SCANNER_RESULT_FILENAME
-        scan_data = load_scan_result(uploaded_file) if uploaded_file else load_configured_json(result_path)
+        scan_data = load_scan_result(uploaded_file) if uploaded_file else load_configured_json(SCANNER_RESULT_FILENAME)
         analysis_data = (
             load_scan_result(uploaded_analysis_file)
             if uploaded_analysis_file
@@ -1235,7 +1234,7 @@ def main() -> None:
         return
 
     with st.sidebar:
-        source_name = uploaded_file.name if uploaded_file is not None else str(result_path)
+        source_name = uploaded_file.name if uploaded_file is not None else SCANNER_RESULT_FILENAME
         target_name = scan_data.get("target") or scan_data.get("target_url") or "대상 미제공"
         st.html(
             '<div class="sidebar-source-card">'

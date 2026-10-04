@@ -115,16 +115,12 @@ def build_scan_report(target_url: str, analysis: dict) -> dict:
 
 
 def save_scan_report(report: dict, target_url: str) -> Path:
-    """Save one immutable final JSON report and return its path."""
-    parts = urlsplit(target_url)
-    host = re.sub(r"[^A-Za-z0-9.-]", "-", (parts.hostname or "target").encode("idna").decode("ascii"))
-    if parts.port:
-        host += f"-{parts.port}"
+    """최신 최종 보고서를 output/scan-results.json에 저장하고 절대 경로를 반환한다."""
     output_dir = Path(__file__).resolve().parent / "output"
     output_dir.mkdir(exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    path = output_dir / f"scan-results-{host}-{stamp}-{uuid4().hex[:8]}.json"
-    with path.open("x", encoding="utf-8") as output:
-        json.dump(redact_sensitive(report), output, ensure_ascii=False, indent=2)
-        output.write("\n")
+    path = output_dir / "scan-results.json"
+    # 고정 파일명은 재검사 때 갱신한다. 직렬화 실패 시 기존 파일은 유지한다.
+    serialized = json.dumps(redact_sensitive(report), ensure_ascii=False, indent=2)
+    with path.open("w", encoding="utf-8") as output:
+        output.write(serialized + "\n")
     return path

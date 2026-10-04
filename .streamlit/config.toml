@@ -1,0 +1,33 @@
+[theme]
+base = "light"
+primaryColor = "#246ec7"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f6f8"
+textColor = "#17344b"
+borderColor = "#dbe5ee"
+dataframeHeaderBackgroundColor = "#eef3f8"
+dataframeBorderColor = "#dbe5ee"
+codeBackgroundColor = "#f3f6f8"
+codeTextColor = "#17344b"
+
+[theme.sidebar]
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f6f8"
+textColor = "#17344b"
+
+# 브라우저나 기존 사용자 설정이 다크 테마를 선택해도 밝은 색상을 사용한다.
+[theme.dark]
+primaryColor = "#246ec7"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f6f8"
+textColor = "#17344b"
+borderColor = "#dbe5ee"
+dataframeHeaderBackgroundColor = "#eef3f8"
+dataframeBorderColor = "#dbe5ee"
+codeBackgroundColor = "#f3f6f8"
+codeTextColor = "#17344b"
+
+[theme.dark.sidebar]
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f6f8"
+textColor = "#17344b"

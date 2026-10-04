@@ -151,7 +151,7 @@ Streamlit 입력
     → OpenAI function call
     → module/의 취약점 검사 함수 실행
     → 공통 스키마 정규화
-    → output/scan-results-*.json 생성
+    → output/scan-results.json 생성 (재검사 시 최신 결과로 갱신)
 ```
 
 - [구조 설계](docs/ARCHITECTURE.md)
