@@ -1,16 +1,17 @@
-import io
 import json
 import unittest
-from contextlib import redirect_stdout
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import requests
 import report_writer
 from module.contracts import cookie_dict, cookie_header, normalize_finding, public_parameters
 from module import scanner_tools
 from module.analysis_stub import TOOL_SCHEMA as STUB_TOOL_SCHEMA, analyze_endpoint_stub
 from module.tool_registry import SCANNERS, TOOL_SCHEMAS, execute_tool
 from module.ssrf.scanner import SSRFScanner
+from module.fileio_scanner.client import Client
+from module.fileio_scanner.pipeline import resolve_config
 
 
 ARGS = {
@@ -18,6 +19,15 @@ ARGS = {
     "method": "GET",
     "parameters": [{"name": "content", "location": "query"}],
 }
+SSRF_FORM = """
+<form method="post" action="/pre-course/write">
+  <input type="hidden" name="csrf_token" value="fresh-token">
+  <input type="text" name="title" value="">
+  <input type="url" name="url" value="">
+  <button type="submit" name="action" value="preview">Preview</button>
+  <button type="submit" name="action" value="save">Save</button>
+</form>
+"""
 
 
 class ScannerIntegrationTest(unittest.TestCase):
@@ -135,28 +145,47 @@ class ScannerIntegrationTest(unittest.TestCase):
         self.assertEqual(findings[0]["vuln"], "VULNERABLE")
         self.assertIn("raw_result", findings[0]["details"])
 
-    def test_ssrf_uses_verifier_evidence_without_internal_ai(self):
-        response = SimpleNamespace(
-            status_code=200,
-            headers={},
-            text="ok",
-            elapsed=SimpleNamespace(total_seconds=lambda: 0.1),
-            content=b"ok",
-        )
+    def test_ssrf_uses_normal_form_and_requires_internal_evidence(self):
+        target = "http://127.0.0.1:8080/pre-course/write"
         scanner = SSRFScanner({
-            "url": "http://127.0.0.1:8080/pre-course/write",
+            "url": target,
             "method": "POST",
-            "parameters": {"url": "http://internal-service:9000/health"},
+            "parameters": {"csrf_token": "", "title": "", "url": "", "action": ""},
+            "session_cookie": {"sslc_lab_session": "private"},
         })
-        with patch.object(scanner, "send_request", return_value=response), \
-                patch.object(scanner, "check_verifier", side_effect=lambda scan_id: {
-                    "received": True, "id": scan_id, "path": f"/check/{scan_id}",
-                }):
-            with redirect_stdout(io.StringIO()):
-                result = scanner.scan()
+        form_response = SimpleNamespace(status_code=200, url=target, text=SSRF_FORM)
+        proof_response = SimpleNamespace(
+            status_code=200,
+            url=target,
+            text='<input name="title" value="SSRF SUCCESS - internal-service reached">',
+        )
+        with patch.object(scanner.session, "get", return_value=form_response) as get, \
+                patch.object(scanner.session, "request", return_value=proof_response) as request:
+            result = scanner.scan()
+        get.assert_called_once_with(target, timeout=5.0)
+        sent = request.call_args.kwargs["data"]
+        self.assertEqual(sent["csrf_token"], "fresh-token")
+        self.assertEqual(sent["title"], "")
+        self.assertEqual(sent["url"], "http://internal-service:9000/course")
+        self.assertEqual(sent["action"], "preview")
+        self.assertEqual(scanner.session.cookies.get("sslc_lab_session"), "private")
+        self.assertEqual(result["details"]["evidence_marker"],
+                         "SSRF SUCCESS - internal-service reached")
         scanner.session.close()
         self.assertEqual(result["vuln"], "VULNERABLE")
-        self.assertIn("서버 측 요청", result["result"])
+        self.assertIn("내부 서비스 접근 증거", result["result"])
+
+        scanner = SSRFScanner({"url": target, "method": "POST", "parameters": {"url": ""}})
+        no_proof = SimpleNamespace(
+            status_code=200, url=target,
+            text='<p role="alert">썸네일을 가져오지 못했습니다.</p>',
+        )
+        with patch.object(scanner.session, "get", return_value=form_response), \
+                patch.object(scanner.session, "request", return_value=no_proof):
+            result = scanner.scan()
+        scanner.session.close()
+        self.assertEqual(result["vuln"], "REVIEW")
+        self.assertIn("증거를 찾지 못했습니다", result["result"])
 
     def test_account_based_scanners_return_review_without_private_config(self):
         with patch.dict("os.environ", {}, clear=True):
@@ -165,12 +194,8 @@ class ScannerIntegrationTest(unittest.TestCase):
         self.assertEqual(fileio[0]["vuln"], "REVIEW")
         self.assertEqual(authz[0]["vuln"], "REVIEW")
 
-    def test_fileio_can_use_in_memory_lab_password(self):
-        config = {
-            "accounts": {
-                "victim": {"userId": "student1", "password_env": "PRIVATE"},
-            }
-        }
+    def test_fileio_uses_two_runtime_sessions_without_storing_cookies(self):
+        config = {"accounts": {"victim": {"userId": "unused"}}}
         raw = [{
             "result": "SAFE", "reason": "차단됨", "url": ARGS["url"],
             "method": "GET", "parameters": [], "severity": "NONE",
@@ -179,12 +204,33 @@ class ScannerIntegrationTest(unittest.TestCase):
                 patch.object(scanner_tools, "run_fileio_native", return_value=raw) as run:
             findings = scanner_tools.scan_fileio(
                 ARGS["url"], "GET", ARGS["parameters"],
-                options={"lab_password": "runtime-secret"},
+                "victim-cookie", {"authz_attacker_cookie": "attacker-cookie"},
             )
-        account = run.call_args.args[0]["accounts"]["victim"]
-        self.assertEqual(account["password"], "runtime-secret")
-        self.assertNotIn("password_env", account)
-        self.assertNotIn("runtime-secret", json.dumps(findings, ensure_ascii=False))
+        native = run.call_args.args[0]
+        self.assertNotIn("accounts", native)
+        self.assertEqual(native["sessions"]["victim"]["cookies"], {
+            "sslc_lab_session": "victim-cookie",
+        })
+        self.assertEqual(native["sessions"]["attacker"]["cookies"], {
+            "sslc_lab_session": "attacker-cookie",
+        })
+        serialized = json.dumps(findings, ensure_ascii=False)
+        self.assertNotIn("victim-cookie", serialized)
+        self.assertNotIn("attacker-cookie", serialized)
+
+    def test_fileio_session_auth_is_resolved_and_verified(self):
+        cfg = resolve_config({
+            "base_url": "http://127.0.0.1:8080",
+            "sessions": {"victim": {"cookies": {"session": "private"}}},
+        })
+        self.assertEqual(cfg["auth"]["type"], "session")
+        client = Client(cfg["base_url"])
+        auth = {**cfg["auth"], "success_check_path": "/private"}
+        with patch.object(client, "get", return_value=SimpleNamespace(status_code=200)) as get:
+            self.assertTrue(client.login(auth))
+        self.assertEqual(client.s.cookies.get("session"), "private")
+        get.assert_called_once_with("/private", allow_redirects=False)
+        client.s.close()
 
     def test_authz_compares_two_runtime_sessions_without_storing_cookies(self):
         def http_response(body, status=200, location=""):
@@ -212,6 +258,26 @@ class ScannerIntegrationTest(unittest.TestCase):
         serialized = json.dumps(findings, ensure_ascii=False)
         self.assertNotIn("owner-cookie", serialized)
         self.assertNotIn("attacker-cookie", serialized)
+
+    def test_auth_scanners_skip_slow_requests_and_continue(self):
+        cases = (
+            (
+                scanner_tools.scan_authn,
+                (ARGS["url"], "GET", ARGS["parameters"], "owner-cookie", {}),
+            ),
+            (
+                scanner_tools.scan_authz,
+                (ARGS["url"], "GET", ARGS["parameters"], "owner-cookie", {
+                    "authz_attacker_cookie": "attacker-cookie",
+                }),
+            ),
+        )
+        for scanner, arguments in cases:
+            with self.subTest(scanner=scanner.__name__), \
+                    patch.object(scanner_tools, "_request", side_effect=requests.Timeout):
+                findings = scanner(*arguments)
+            self.assertEqual(findings[0]["vuln"], "REVIEW")
+            self.assertIn("3초를 초과", findings[0]["result"])
 
     def test_final_report_has_common_and_dashboard_views_and_redacts_secrets(self):
         analysis = {

@@ -392,6 +392,8 @@ def _param(cfg):
 
 
 def _who(auth):
+    if auth and auth.get("label"):
+        return auth["label"]
     if not auth or not auth.get("fields"):
         return "anon"
     fields = auth["fields"]

@@ -3,6 +3,7 @@
 ROOKIESCAN 도구 실행 및 보고서 출력하는 streamlit 기반 웹
 '''
 
+from collections import Counter
 from importlib import reload
 from pathlib import Path
 import json
@@ -33,47 +34,30 @@ if not st.session_state.get("show_report", False):
     st.space("small")
 
     # 뒤로 돌아왔을 때 이전 URL과 쿠키를 다시 표시
-    saved_inputs = st.session_state.get("scan_inputs", ("", ""))
+    saved_inputs = tuple(st.session_state.get("scan_inputs", ("", "")))
+    saved_inputs += ("",) * (3 - len(saved_inputs))
 
     # 입력 폼과 로딩 표시가 같은 자리를 사용하는 영역
     panel = st.empty()
     with panel.container():
         target_url = st.text_input("대상 URL", value=saved_inputs[0])
-        session_cookie = st.text_input("세션 쿠키", value=saved_inputs[1], type="password")
-        with st.expander("선택 설정 (교차 계정·파일 검사)"):
-            authz_attacker_cookie = st.text_input(
-                "다른 사용자 세션 쿠키",
-                value=st.session_state.get("authz_attacker_cookie", ""),
-                type="password",
-                help="IDOR/BOLA 교차 계정 검사에만 사용하며 AI와 결과 JSON에는 전달하지 않습니다.",
-            )
-            lab_password = st.text_input(
-                "실습 계정 공통 비밀번호",
-                value=st.session_state.get("lab_password", ""),
-                type="password",
-                help="파일 업로드·다운로드 계정 검사에만 메모리에서 사용하며 저장하지 않습니다.",
-            )
-            ssrf_verifier_payload_url = st.text_input(
-                "SSRF 검증 요청 URL (선택)",
-                value=st.session_state.get("ssrf_verifier_payload_url", ""),
-                help="예: https://verifier.example/check — 외부에서 접근 가능한 승인된 검증 서버가 필요합니다.",
-            )
-            ssrf_verifier_status_url = st.text_input(
-                "SSRF 검증 상태 URL (선택)",
-                value=st.session_state.get("ssrf_verifier_status_url", ""),
-                help="예: https://verifier.example/status — 요청 ID를 뒤에 붙여 조회합니다.",
-            )
+        session_cookie = st.text_input("사용자 A 세션 쿠키", value=saved_inputs[1], type="password")
+        authz_attacker_cookie = st.text_input(
+            "사용자 B 세션 쿠키", value=saved_inputs[2], type="password",
+            help="교차 계정 및 파일 접근 검사에 사용하며 AI와 결과 JSON에는 전달하지 않습니다.",
+        )
         find_clicked = st.button("Sink 찾기")
         if "scan_error" in st.session_state:
             st.error(st.session_state.pop("scan_error"))
 
     #이제 sink 찾아야함 sink_finder
     if find_clicked:
-        st.session_state["scan_inputs"] = (target_url, session_cookie)
+        if not target_url.strip() or not session_cookie.strip() or not authz_attacker_cookie.strip():
+            st.session_state["scan_error"] = "대상 URL과 사용자 A·B 세션 쿠키를 모두 입력하세요."
+            st.rerun()
+        st.session_state["scan_inputs"] = (target_url, session_cookie, authz_attacker_cookie)
         st.session_state["authz_attacker_cookie"] = authz_attacker_cookie
-        st.session_state["lab_password"] = lab_password
-        st.session_state["ssrf_verifier_payload_url"] = ssrf_verifier_payload_url
-        st.session_state["ssrf_verifier_status_url"] = ssrf_verifier_status_url
+        st.session_state.pop("lab_password", None)
         # 입력 폼을 지우고 탐색이 끝날 때까지 로딩 표시
         panel.empty()
         try:
@@ -149,9 +133,6 @@ else:
                     session_cookie=st.session_state.get("scan_inputs", ("", ""))[1],
                     scanner_options={
                         "authz_attacker_cookie": st.session_state.get("authz_attacker_cookie", ""),
-                        "lab_password": st.session_state.get("lab_password", ""),
-                        "ssrf_verifier_payload_url": st.session_state.get("ssrf_verifier_payload_url", ""),
-                        "ssrf_verifier_status_url": st.session_state.get("ssrf_verifier_status_url", ""),
                     },
                     on_progress=lambda message: status.update(label=message),
                 )
@@ -174,7 +155,12 @@ else:
             else:
                 st.session_state["analysis_result"] = report
                 st.session_state.pop("analysis_error", None)
-                status.update(label="AI 분석 완료", state="complete", expanded=False)
+                label = (
+                    "스캐너 분석 완료 · AI 요약 재시도 가능"
+                    if report.get("summary_status") == "fallback"
+                    else "AI 분석 완료"
+                )
+                status.update(label=label, state="complete", expanded=False)
 
     if "analysis_error" in st.session_state:
         analysis_title.subheader("취약점 분석 실패")
@@ -201,28 +187,34 @@ else:
         st.subheader("확인된 취약점")
         confirmed = [finding for finding in snapshot["findings"] if finding["vuln"] == "VULNERABLE"]
         if confirmed:
-            st.table([{
-                "취약점": finding["name"], "메서드": finding["method"], "URL": finding["url"],
-                "입력 필드": ", ".join(p["name"] for p in finding["parameters"]) or "-",
-                "위험도": finding["severity"],
-            } for finding in confirmed])
+            by_name = Counter(finding["name"] for finding in confirmed)
+            st.table([
+                {"취약점": name, "확인 건수": count}
+                for name, count in sorted(by_name.items(), key=lambda item: (-item[1], item[0]))
+            ])
         else:
             st.write("취약 판정으로 기록된 항목이 없습니다.")
 
-        st.subheader("AI 분석 답변")
+        st.subheader(
+            "AI 분석 답변"
+            if report.get("summary_scope") == "all_results"
+            else "스캐너 결과 요약"
+        )
         if report.get("summary_scope") == "all_results":
             st.markdown(report["summary"])
         else:
-            # 기존 결과도 스캐너를 다시 실행하지 않고 AI 답변만 갱신할 수 있다.
-            st.caption("저장된 전체 결과를 기준으로 AI 답변을 갱신할 수 있습니다.")
-            if st.button("AI 답변 갱신"):
+            # 스캐너를 다시 실행하지 않고 저장된 전체 결과의 AI 요약만 재시도한다.
+            st.warning("스캐너 검사는 완료됐지만 AI 요약이 끝나지 않았습니다. 검사 결과는 보존됐습니다.")
+            if st.button("AI 요약 다시 시도"):
                 try:
                     with st.spinner("전체 결과로 AI 답변을 작성 중입니다."):
                         ai_module = reload(openai_module)
                         with ai_module.get_openai_client().with_options(timeout=90, max_retries=0) as client:
                             response = ai_module.summarize_results(report, client)
                         updated = {**report, "model": response.model,
-                                   "summary": response.output_text.strip(), "summary_scope": "all_results"}
+                                   "summary": response.output_text.strip(),
+                                   "summary_scope": "all_results", "summary_status": "completed"}
+                        updated.pop("summary_error", None)
                         updated_json = report_writer.build_scan_report(st.session_state["scan_target_url"], updated)
                         updated["json_path"] = str(report_writer.save_scan_report(
                             updated_json, st.session_state["scan_target_url"],
@@ -232,8 +224,7 @@ else:
                 else:
                     st.session_state["analysis_result"] = updated
                     st.rerun()
-            with st.expander("이전 AI 답변"):
-                st.markdown(report["summary"])
+            st.markdown(report["summary"])
 
         st.subheader("전체 검사 결과")
         st.dataframe([{

@@ -114,13 +114,17 @@ python -m pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-화면의 기본 입력은 대상 URL과 로그인 세션 쿠키다. 쿠키는 `이름=값` 전체 형식뿐 아니라
-값만 입력해도 기본 이름 `sslc_lab_session`으로 처리한다. `선택 설정`에서는 AI로 보내거나
-결과 JSON에 저장하지 않는 실행 시점 전용 값을 받을 수 있다.
+화면의 기본 입력은 대상 URL과 서로 다른 사용자 A·B의 로그인 세션 쿠키다. 쿠키는
+`이름=값` 전체 형식뿐 아니라 값만 입력해도 기본 이름 `sslc_lab_session`으로 처리한다.
+두 쿠키는 AI로 보내거나 결과 JSON에 저장하지 않고 실행 중에만 사용한다.
 
-- 다른 사용자 세션 쿠키: IDOR/BOLA 교차 계정 비교
-- 실습 계정 공통 비밀번호: 파일 업로드·다운로드 계정 검사
-- SSRF 검증 요청/상태 URL: 서버 측 콜백을 확인할 수 있는 승인된 검증 서버
+- 사용자 A 세션 쿠키: Sink 탐색, 파일 업로드와 소유자 기준 검사
+- 사용자 B 세션 쿠키: IDOR/BOLA 및 다른 사용자 파일 접근 비교
+
+SSRF 검사는 사용자 A 세션으로 실제 입력 폼과 최신 CSRF 토큰을 가져온 뒤
+`action=preview`로 내부 서비스 검증 URL을 전송한다. 기본 실습 주소는
+`http://internal-service:9000/course`이며, 응답에서 내부 서비스 고유 문구를 확인한 경우에만
+취약점으로 판정한다.
 
 이 값이 없어서 안전하게 자동 판정할 수 없는 검사는 오탐을 만들지 않고 `REVIEW`로 남긴다.
 
@@ -131,9 +135,8 @@ streamlit run streamlit_app.py
 ROOKIESCAN_AUTHN_CONFIG=C:/private/authn.json
 ROOKIESCAN_AUTHZ_CONFIG=C:/private/authz.json
 ROOKIESCAN_FILEIO_CONFIG=C:/private/fileio.json
-ROOKIESCAN_PASSWORD=실습계정비밀번호
-SSRF_VERIFIER_PAYLOAD_URL=http://ssrf-verifier:9001/check
-SSRF_VERIFIER_STATUS_URL=https://target/ssrf-verify/status
+SSRF_PROBE_URL=http://internal-service:9000/course
+SSRF_EXPECTED_MARKERS=SSRF SUCCESS - internal-service reached|internal-service:9000 reached
 ```
 
 안전한 설정 템플릿은 `examples/*-config.example.json`, 최종 대시보드 입력 예시는

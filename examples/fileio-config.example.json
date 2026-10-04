@@ -1,10 +1,14 @@
 {
   "base_url": "http://127.0.0.1:8080",
-  "login_path": "/login",
-  "accounts": {
-    "victim": {"userId": "student1", "password_env": "ROOKIESCAN_PASSWORD"},
-    "attacker": {"userId": "student2", "password_env": "ROOKIESCAN_PASSWORD"},
-    "admin": {"userId": "admin", "password_env": "ROOKIESCAN_PASSWORD"}
+  "sessions": {
+    "victim": {
+      "cookie_name": "sslc_lab_session",
+      "cookie_env": "ROOKIESCAN_VICTIM_SESSION"
+    },
+    "attacker": {
+      "cookie_name": "sslc_lab_session",
+      "cookie_env": "ROOKIESCAN_ATTACKER_SESSION"
+    }
   },
   "endpoints": [
     {

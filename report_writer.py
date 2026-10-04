@@ -107,6 +107,8 @@ def build_scan_report(target_url: str, analysis: dict) -> dict:
             "model": analysis.get("model"),
             "summary": analysis.get("summary", ""),
             "summary_scope": analysis.get("summary_scope"),
+            "summary_status": analysis.get("summary_status", "completed"),
+            "summary_error": analysis.get("summary_error"),
             "tool_call_count": analysis.get("tool_call_count", 0),
         },
     }

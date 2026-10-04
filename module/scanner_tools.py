@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import io
 import json
 import os
-from contextlib import redirect_stdout
 from copy import deepcopy
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -35,6 +33,8 @@ from .xss.reflected_xss import ReflectedXSSScanner
 
 
 Options = dict[str, Any] | None
+DEFAULT_AUTH_TIMEOUT = 3.0
+MAX_AUTH_COMPARE_CHARS = 65_536
 
 
 def _origin(url: str) -> str:
@@ -175,16 +175,27 @@ def scan_portscan(url: str, method: str, parameters: Any, session_cookie: Any = 
 def scan_fileio(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
     options = options or {}
     native = _load_config(options, "fileio_config", "ROOKIESCAN_FILEIO_CONFIG")
-    runtime_password = str(options.get("lab_password") or "")
-    if not native and runtime_password:
+    victim_cookies = cookie_dict(session_cookie)
+    attacker_cookies = cookie_dict(options.get("authz_attacker_cookie", ""))
+    if not native and victim_cookies:
         native = _load_example_config("fileio-config.example.json")
     if not native:
         return [review_finding(
             "fileio", "File Upload/Download", url, method, parameters,
-            "ROOKIESCAN_FILEIO_CONFIG가 없어 계정 기반 파일 검사를 수행하지 않았습니다.",
+            "파일 검사를 위한 사용자 A 세션 쿠키가 없습니다.",
         )]
-    if runtime_password:
-        native = _inject_runtime_password(native, runtime_password)
+    sessions = deepcopy(native.get("sessions") or {})
+    if victim_cookies:
+        sessions["victim"] = {"cookies": victim_cookies}
+    if attacker_cookies:
+        sessions["attacker"] = {"cookies": attacker_cookies}
+    if not sessions.get("victim"):
+        return [review_finding(
+            "fileio", "File Upload/Download", url, method, parameters,
+            "파일 검사를 위한 사용자 A 세션 쿠키가 없습니다.",
+        )]
+    native["sessions"] = sessions
+    native.pop("accounts", None)
     native["base_url"] = _origin(url)
     native["endpoints"] = [{
         "url": url,
@@ -245,7 +256,7 @@ def _response_fingerprint(response: requests.Response) -> dict[str, Any]:
 
 def scan_authn(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
     options = options or {}
-    timeout = float(options.get("timeout", 5))
+    timeout = float(options.get("auth_timeout", options.get("timeout", DEFAULT_AUTH_TIMEOUT)))
     config = _load_config(options, "authn_config", "ROOKIESCAN_AUTHN_CONFIG")
     if config:
         return _configured_auth_scan(
@@ -269,6 +280,16 @@ def scan_authn(url: str, method: str, parameters: Any, session_cookie: Any = "",
     try:
         auth_response = _request(authenticated, method, url, parameters, timeout)
         anon_response = _request(anonymous, method, url, parameters, timeout)
+    except requests.Timeout:
+        return [review_finding(
+            "authn", "Insufficient Authentication", url, method, parameters,
+            f"응답 제한 시간 {timeout:g}초를 초과해 이 인증 검사를 건너뛰었습니다.",
+        )]
+    except requests.RequestException:
+        return [review_finding(
+            "authn", "Insufficient Authentication", url, method, parameters,
+            "HTTP 요청 오류로 이 인증 검사를 건너뛰었습니다.",
+        )]
     finally:
         authenticated.close()
         anonymous.close()
@@ -281,7 +302,11 @@ def scan_authn(url: str, method: str, parameters: Any, session_cookie: Any = "",
         vuln = "PASS"
         reason = f"비로그인 요청이 HTTP {anon_response.status_code}로 차단되었습니다."
     elif auth_response.status_code == anon_response.status_code == 200:
-        similarity = SequenceMatcher(None, auth_response.text, anon_response.text).ratio()
+        similarity = SequenceMatcher(
+            None,
+            auth_response.text[:MAX_AUTH_COMPARE_CHARS],
+            anon_response.text[:MAX_AUTH_COMPARE_CHARS],
+        ).ratio()
         if len(auth_response.content) >= 80 and similarity >= 0.95:
             vuln = "VULNERABLE"
             reason = f"비로그인 응답이 인증 응답과 {similarity:.1%} 유사하여 보호 누락이 의심됩니다."
@@ -307,6 +332,7 @@ def scan_authn(url: str, method: str, parameters: Any, session_cookie: Any = "",
 
 def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
     options = options or {}
+    timeout = float(options.get("auth_timeout", options.get("timeout", DEFAULT_AUTH_TIMEOUT)))
     config = _load_config(options, "authz_config", "ROOKIESCAN_AUTHZ_CONFIG")
     if config:
         runtime_password = str(options.get("lab_password") or "")
@@ -314,7 +340,7 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
             config = _inject_runtime_password(config, runtime_password)
         return _configured_auth_scan(
             run_authz_config, "authz", "IDOR/BOLA", config,
-            url, method, parameters, float(options.get("timeout", 5)),
+            url, method, parameters, timeout,
         )
 
     attacker_cookie = options.get("authz_attacker_cookie", "")
@@ -331,7 +357,6 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
             "상태 변경 요청은 설정 기반 교차 계정 검사에서만 실행합니다.",
         )]
 
-    timeout = float(options.get("timeout", 5))
     owner = requests.Session()
     attacker = requests.Session()
     anonymous = requests.Session()
@@ -341,6 +366,16 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
         owner_response = _request(owner, method, url, parameters, timeout)
         attacker_response = _request(attacker, method, url, parameters, timeout)
         anonymous_response = _request(anonymous, method, url, parameters, timeout)
+    except requests.Timeout:
+        return [review_finding(
+            "authz", "IDOR/BOLA", url, method, parameters,
+            f"응답 제한 시간 {timeout:g}초를 초과해 이 권한 검사를 건너뛰었습니다.",
+        )]
+    except requests.RequestException:
+        return [review_finding(
+            "authz", "IDOR/BOLA", url, method, parameters,
+            "HTTP 요청 오류로 이 권한 검사를 건너뛰었습니다.",
+        )]
     finally:
         owner.close()
         attacker.close()
@@ -363,7 +398,9 @@ def scan_authz(url: str, method: str, parameters: Any, session_cookie: Any = "",
         similarity = 0.0
     elif 200 <= attacker_response.status_code < 300:
         similarity = SequenceMatcher(
-            None, owner_response.text, attacker_response.text
+            None,
+            owner_response.text[:MAX_AUTH_COMPARE_CHARS],
+            attacker_response.text[:MAX_AUTH_COMPARE_CHARS],
         ).ratio()
         if len(owner_response.content) >= 80 and similarity >= 0.90:
             vuln = "VULNERABLE"
@@ -409,27 +446,27 @@ def scan_ssrf(url: str, method: str, parameters: Any, session_cookie: Any = "", 
         (name for name in names if name.lower() in {"url", "uri", "link", "callback", "webhook"}),
         names[0] if names else "url",
     )
-    values = parameter_values(normalized)
-    values[parameter_name] = options.get("ssrf_probe_url", "http://internal-service:9000/health")
     scanner_input = {
         "url": url,
         "method": method,
-        "parameters": values,
+        "parameters": parameter_values(normalized),
         "ssrf_parameter": parameter_name,
         "session_cookie": cookie_dict(session_cookie),
     }
-    if options.get("ssrf_verifier_payload_url"):
-        scanner_input["verifier_payload_url"] = options["ssrf_verifier_payload_url"]
-    if options.get("ssrf_verifier_status_url"):
-        scanner_input["verifier_status_url"] = options["ssrf_verifier_status_url"]
+    if options.get("ssrf_probe_url"):
+        scanner_input["probe_url"] = options["ssrf_probe_url"]
+    if options.get("ssrf_expected_markers"):
+        markers = options["ssrf_expected_markers"]
+        scanner_input["expected_markers"] = (
+            [item.strip() for item in markers.split("|") if item.strip()]
+            if isinstance(markers, str) else markers
+        )
     scanner = SSRFScanner(scanner_input)
     try:
-        # 팀원 코드의 진행 메시지는 통합 UI/JSON에 섞이지 않게 숨긴다.
-        with redirect_stdout(io.StringIO()):
-            raw = scanner.scan()
+        raw = scanner.scan()
     finally:
         scanner.session.close()
-    raw["parameters"] = public_parameters(parameters)
+    raw["parameters"] = public_parameters(normalized)
     return _normalize_many([raw], "ssrf", "Server-Side Request Forgery", url, method, parameters)
 
 

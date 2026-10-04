@@ -31,6 +31,7 @@ def scan(app=None):
     app = app or AppTest.from_file(str(APP)).run()
     app.text_input[0].set_value("http://127.0.0.1:8080/")
     app.text_input[1].set_value("test-cookie")
+    app.text_input[2].set_value("other-cookie")
     return app.button[0].click().run()
 
 
@@ -61,6 +62,15 @@ class StreamlitFlowTest(unittest.TestCase):
         writer_patch.start()
         self.addCleanup(writer_patch.stop)
 
+    def test_target_and_two_session_cookies_are_required(self):
+        app = AppTest.from_file(str(APP)).run()
+        app.text_input[0].set_value("http://127.0.0.1:8080/")
+        app.text_input[1].set_value("test-cookie")
+        app.button[0].click().run()
+        self.assertEqual(len(app.error), 1)
+        self.assertIn("사용자 A·B 세션 쿠키", app.error[0].value)
+        self.assertNotIn("sinks", app.session_state)
+
     def test_sink_json_is_saved_with_host_and_unique_identifier(self):
         opener = SimpleNamespace(open=lambda request, timeout: response("<title>Page</title>"))
         with patch("urllib.request.build_opener", return_value=opener):
@@ -73,6 +83,7 @@ class StreamlitFlowTest(unittest.TestCase):
             saved = json.loads(first.read_text(encoding="utf-8"))
             self.assertEqual(saved, app.session_state["openai_sinks"])
             self.assertNotIn("test-cookie", first.read_text(encoding="utf-8"))
+            self.assertNotIn("other-cookie", first.read_text(encoding="utf-8"))
             app.button[0].click().run()
             app = scan(app)
             second = Path(app.session_state["sink_json_path"])
@@ -134,10 +145,7 @@ class StreamlitFlowTest(unittest.TestCase):
                     app.run()
                     analyze.assert_called_once()
                     self.assertEqual(analyze.call_args.kwargs["scanner_options"], {
-                        "authz_attacker_cookie": "",
-                        "lab_password": "",
-                        "ssrf_verifier_payload_url": "",
-                        "ssrf_verifier_status_url": "",
+                        "authz_attacker_cookie": "other-cookie",
                     })
                     self.assertEqual(analyze.call_args.args[0]["source_marker"], "loaded_from_json")
                     rerun_finder.assert_not_called()
@@ -153,6 +161,7 @@ class StreamlitFlowTest(unittest.TestCase):
         final_path = Path(app.session_state["analysis_result"]["json_path"])
         self.assertTrue(final_path.exists())
         self.assertNotIn("test-cookie", final_path.read_text(encoding="utf-8"))
+        self.assertNotIn("other-cookie", final_path.read_text(encoding="utf-8"))
 
     def test_none_is_visible_and_preserves_previous_results(self):
         app = AppTest.from_file(str(APP)).run()
@@ -203,6 +212,7 @@ class StreamlitFlowTest(unittest.TestCase):
             app.button[0].click().run()
         self.assertEqual(app.text_input[0].value, "http://127.0.0.1:8080/")
         self.assertEqual(app.text_input[1].value, "test-cookie")
+        self.assertEqual(app.text_input[2].value, "other-cookie")
         self.assertEqual(app.button[0].label, "Sink 찾기")
         self.assertFalse(app.dataframe)
         with patch("urllib.request.build_opener", return_value=SimpleNamespace(open=open_page)):
@@ -231,6 +241,34 @@ class StreamlitFlowTest(unittest.TestCase):
         self.assertFalse(app.error)
         self.assertIn("analysis_result", app.session_state)
         self.assertNotIn("analysis_error", app.session_state)
+
+    def test_incomplete_ai_summary_keeps_completed_scanner_report_visible(self):
+        fallback = analysis_report({"groups": []})
+        fallback.update(
+            summary_scope="scanner_results",
+            summary_status="fallback",
+            summary_error="AI 요약이 완료되지 않았습니다.",
+            summary="판정 집계: VULNERABLE 0건, PASS 1건, REVIEW 0건, ERROR 0건",
+        )
+        app = AppTest.from_file(str(APP))
+        app.session_state["show_report"] = True
+        app.session_state["show_analysis"] = True
+        app.session_state["analysis_pending"] = True
+        app.session_state["scan_target_url"] = "http://127.0.0.1:8080/"
+        app.session_state["scan_inputs"] = ("http://127.0.0.1:8080/", "test-cookie", "other-cookie")
+        app.session_state["openai_sinks"] = {"groups": [{}]}
+
+        with patch("importlib.reload", side_effect=lambda module: module), \
+                patch.object(openai_module, "analyze_sinks", return_value=fallback):
+            app.run()
+
+        self.assertFalse(app.exception)
+        self.assertFalse(app.error)
+        self.assertIn("analysis_result", app.session_state)
+        self.assertEqual(app.subheader[0].value, "분석 보고서")
+        self.assertEqual(app.subheader[3].value, "스캐너 결과 요약")
+        self.assertIn("검사 결과는 보존됐습니다", app.warning[0].value)
+        self.assertIn("AI 요약 다시 시도", [button.label for button in app.button])
 
     def test_session_failure_is_visible(self):
         opener = SimpleNamespace(open=lambda request, timeout: response(status=401))
@@ -272,10 +310,11 @@ class StreamlitFlowTest(unittest.TestCase):
             self.assertEqual(app.table[0].value.to_dict("records"), [{
                 "전체 결과": 70, "VULNERABLE": 6, "PASS": 18, "REVIEW": 46, "ERROR": 0,
             }])
-            self.assertEqual(app.table[1].value["URL"].tolist(),
-                             [f"http://127.0.0.1:8080/item/{index}" for index in range(6)])
+            self.assertEqual(app.table[1].value.to_dict("records"), [{
+                "취약점": "SQL Injection", "확인 건수": 6,
+            }])
             client.responses.create.assert_not_called()
-            next(button for button in app.button if button.label == "AI 답변 갱신").click().run()
+            next(button for button in app.button if button.label == "AI 요약 다시 시도").click().run()
             self.assertFalse(app.exception)
             self.assertFalse(app.error)
             client.responses.create.assert_called_once()

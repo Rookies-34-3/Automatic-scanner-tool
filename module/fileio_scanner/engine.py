@@ -17,7 +17,7 @@ def run_scan(cfg, autodetect=True) -> dict:
         try:
             cfg = recon.normalize(cfg)
             r = cfg.get("_recon", {})
-            print(f"[recon] 로그인필드 {r.get('login_detected')}")
+            print(f"[recon] 사용자 A 세션={r.get('session_auth')}")
             print(f"[recon] 파일필드={r.get('upload_field')}  다운로드={r.get('download')}")
         except Exception as e:
             print(f"[recon] 자동 탐지 일부 실패(수동값 사용): {e}")

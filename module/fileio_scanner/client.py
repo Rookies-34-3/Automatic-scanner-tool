@@ -46,19 +46,25 @@ class Client:
         """auth 설정에 따라 로그인. 성공 여부(bool) 반환.
 
         auth = {
-          type: "form" | "none",
+          type: "form" | "session" | "none",
           login_path, csrf_field, fields{...}, success_check_path
         }
         """
         if not auth or auth.get("type") == "none":
             return True
-        data = dict(auth.get("fields", {}))
-        csrf_field = auth.get("csrf_field")
-        if csrf_field:
-            tok = self.extract_token(auth["login_path"], csrf_field)
-            if tok is not None:
-                data[csrf_field] = tok
-        self.post(auth["login_path"], data=data, allow_redirects=True)
+        if auth.get("type") == "session":
+            cookies = auth.get("cookies")
+            if not isinstance(cookies, dict) or not cookies:
+                return False
+            self.s.cookies.update(cookies)
+        else:
+            data = dict(auth.get("fields", {}))
+            csrf_field = auth.get("csrf_field")
+            if csrf_field:
+                tok = self.extract_token(auth["login_path"], csrf_field)
+                if tok is not None:
+                    data[csrf_field] = tok
+            self.post(auth["login_path"], data=data, allow_redirects=True)
         check = auth.get("success_check_path")
         if not check:
             return True

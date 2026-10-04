@@ -1,627 +1,189 @@
-import os
-import re
-import uuid
+"""로그인된 정상 폼 요청으로 내부 서비스 접근 증거를 확인한다."""
+
+from urllib.parse import urljoin, urlsplit
 
 import requests
+from bs4 import BeautifulSoup
 
-from .config import (
-    TIMEOUT,
-    VERIFIER_PAYLOAD_URL,
-    VERIFIER_STATUS_URL,
-    VERIFIER_TIMEOUT,
-)
+from .config import EXPECTED_MARKERS, PROBE_URL, TIMEOUT
 
 
 class SSRFScanner:
-
     def __init__(self, input_data):
-
-        self.input_data = input_data
-
         self.target_url = input_data["url"]
-
         self.method = input_data["method"].upper()
-
-        self.parameters = input_data.get(
-            "parameters",
-            {}
-        )
-
-        self.parameter_name = input_data.get(
-            "ssrf_parameter",
-            "url"
-        )
-
-        self.session_cookie = input_data.get(
-            "session_cookie",
-            ""
-        )
-
-        self.verifier_payload_url = input_data.get(
-            "verifier_payload_url"
-        ) or os.getenv(
-            "SSRF_VERIFIER_PAYLOAD_URL",
-            VERIFIER_PAYLOAD_URL
-        )
-
-        self.verifier_status_url = input_data.get(
-            "verifier_status_url"
-        ) or os.getenv(
-            "SSRF_VERIFIER_STATUS_URL",
-            VERIFIER_STATUS_URL
-        )
-
+        self.parameters = dict(input_data.get("parameters") or {})
+        self.parameter_name = input_data.get("ssrf_parameter", "url")
+        self.session_cookie = input_data.get("session_cookie", "")
+        self.probe_url = input_data.get("probe_url") or self.parameters.get(
+            self.parameter_name
+        ) or PROBE_URL
+        markers = input_data.get("expected_markers") or EXPECTED_MARKERS
+        if isinstance(markers, str):
+            markers = [item.strip() for item in markers.split("|") if item.strip()]
+        self.expected_markers = tuple(markers)
+        self.timeout = float(input_data.get("timeout", TIMEOUT))
         self.session = requests.Session()
 
-    # ==========================================
-    # Session Cookie 설정
-    # ==========================================
-
     def set_session_cookie(self):
-
-        if not self.session_cookie:
+        """문자열 또는 객체로 받은 쿠키를 현재 HTTP 세션에 넣는다."""
+        if isinstance(self.session_cookie, dict):
+            self.session.cookies.update(self.session_cookie)
             return
-
-        # 문자열 형태
-        # "session=abc123; token=xyz"
-        if isinstance(
-            self.session_cookie,
-            str
-        ):
-
-            cookies = (
-                self.session_cookie
-                .split(";")
-            )
-
-            for cookie in cookies:
-
-                cookie = cookie.strip()
-
-                if "=" not in cookie:
-                    continue
-
-                name, value = (
-                    cookie.split(
-                        "=",
-                        1
-                    )
-                )
-
-                self.session.cookies.set(
-                    name.strip(),
-                    value.strip()
-                )
-
-        # JSON object 형태
-        elif isinstance(
-            self.session_cookie,
-            dict
-        ):
-
-            for name, value in (
-                self.session_cookie.items()
-            ):
-
-                self.session.cookies.set(
-                    name,
-                    value
-                )
-
-    # ==========================================
-    # CSRF Token 추출
-    # ==========================================
-
-    def extract_csrf_token(self, html):
-
-        match = re.search(
-            r'name=["\']csrf_token["\']\s+'
-            r'type=["\']hidden["\']\s+'
-            r'value=["\']([^"\']+)',
-            html
-        )
-
-        if not match:
-
-            match = re.search(
-                r'name=["\']csrf_token["\']'
-                r'[^>]*value=["\']([^"\']+)',
-                html
-            )
-
-        if match:
-            return match.group(1)
-
-        return None
-
-    # ==========================================
-    # CSRF Token 획득
-    # ==========================================
-
-    def get_csrf_token(self):
-
-        try:
-
-            response = self.session.get(
-                self.target_url,
-                timeout=TIMEOUT
-            )
-
-        except requests.RequestException as e:
-
-            print(
-                f"[-] CSRF 페이지 요청 실패: {e}"
-            )
-
-            return None
-
-        if response.status_code != 200:
-
-            print(
-                f"[-] 페이지 요청 실패: "
-                f"{response.status_code}"
-            )
-
-            return None
-
-        token = self.extract_csrf_token(
-            response.text
-        )
-
-        return token
-
-    # ==========================================
-    # HTTP 요청
-    # ==========================================
-
-    def send_request(self, url):
-
-        parameters = dict(
-            self.parameters
-        )
-
-        csrf_token = (
-            self.get_csrf_token()
-        )
-
-        if csrf_token:
-
-            parameters["csrf_token"] = (
-                csrf_token
-            )
-
-        try:
-
-            if self.method == "GET":
-
-                response = self.session.get(
-                    url,
-                    params=parameters,
-                    timeout=TIMEOUT
-                )
-
-            elif self.method == "POST":
-
-                response = self.session.post(
-                    url,
-                    data=parameters,
-                    timeout=TIMEOUT
-                )
-
-            elif self.method == "PUT":
-
-                response = self.session.put(
-                    url,
-                    data=parameters,
-                    timeout=TIMEOUT
-                )
-
-            elif self.method == "DELETE":
-
-                response = self.session.delete(
-                    url,
-                    params=parameters,
-                    timeout=TIMEOUT
-                )
-
-            else:
-
-                raise ValueError(
-                    f"지원하지 않는 HTTP Method: "
-                    f"{self.method}"
-                )
-
-            return response
-
-        except requests.RequestException as e:
-
-            print(
-                f"[-] HTTP 요청 실패: {e}"
-            )
-
-            return None
-
-    # ==========================================
-    # SSRF Verifier 상태 확인
-    # ==========================================
-
-    def check_verifier(self, verification_id):
-
-        status_url = (
-            f"{self.verifier_status_url.rstrip('/')}/"
-            f"{verification_id}"
-        )
-
-        try:
-
-            response = requests.get(
-                status_url,
-                timeout=VERIFIER_TIMEOUT
-            )
-
-            if response.status_code != 200:
-
-                print(
-                    f"[-] Verifier 상태 조회 실패: "
-                    f"HTTP {response.status_code}"
-                )
-
-                return {
-                    "received": False,
-                    "status_code": response.status_code,
-                    "error": "Verifier status API가 정상 응답하지 않았습니다."
-                }
-
-            data = response.json()
-
-            return {
-                "received": bool(data.get("received")),
-                "status_code": response.status_code,
-                "time": data.get("time"),
-                "client": data.get("client"),
-                "method": data.get("method"),
-                "path": data.get("path"),
-                "id": data.get("id", verification_id)
-            }
-
-        except (requests.RequestException, ValueError) as e:
-
-            print(
-                f"[-] Verifier 상태 조회 실패: {e}"
-            )
-
-            return {
-                "received": False,
-                "status_code": None,
-                "error": str(e)
-            }
-
-    # ==========================================
-    # 응답 데이터 수집
-    # ==========================================
-
-    def collect_response(
-        self,
-        response
-    ):
-
-        if response is None:
-            return None
-
+        if not isinstance(self.session_cookie, str):
+            return
+        for cookie in self.session_cookie.split(";"):
+            if "=" not in cookie:
+                continue
+            name, value = cookie.split("=", 1)
+            if name.strip():
+                self.session.cookies.set(name.strip(), value.strip())
+
+    @staticmethod
+    def _origin(url):
+        parts = urlsplit(url)
+        return parts.scheme, parts.hostname, parts.port or (443 if parts.scheme == "https" else 80)
+
+    def _result(self, vuln, reason, details=None):
         return {
-            "status_code": response.status_code,
-            "response_time": response.elapsed.total_seconds(),
-            "content_length": len(response.content),
-        }
-
-    # ==========================================
-    # SSRF Scanner
-    # ==========================================
-
-    def scan(self):
-
-        print("=" * 60)
-        print("SSRF Scanner")
-        print("=" * 60)
-
-        print(
-            f"URL       : {self.target_url}"
-        )
-
-        print(
-            f"Method    : {self.method}"
-        )
-
-        print(
-            f"Parameters: {self.parameters}"
-        )
-
-        print()
-
-        # ======================================
-        # 세션 쿠키 설정
-        # ======================================
-
-        self.set_session_cookie()
-
-        # ======================================
-        # 내부 테스트 URL
-        # ======================================
-
-        internal_url = self.parameters.get(
-            self.parameter_name
-        )
-
-        if not internal_url:
-
-            return {
-                "url":
-                    self.target_url,
-
-                "method":
-                    self.method,
-
-                "parameters":
-                    self.parameters,
-
-                "vuln":
-                    "N/A",
-
-                "result":
-                    "SSRF 테스트 URL이 없습니다."
-            }
-
-        # ======================================
-        # 정상 외부 URL
-        # ======================================
-
-        external_url = (
-            "https://example.com"
-        )
-
-        print(
-            "[1] 정상 외부 URL 테스트"
-        )
-
-        print(
-            f"    URL: {external_url}"
-        )
-
-        # 외부 URL을 parameter에 넣어서 요청
-        external_parameters = dict(
-            self.parameters
-        )
-
-        external_parameters[self.parameter_name] = (
-            external_url
-        )
-
-        original_parameters = (
-            self.parameters
-        )
-
-        self.parameters = (
-            external_parameters
-        )
-
-        external_response = (
-            self.send_request(
-                self.target_url
-            )
-        )
-
-        self.parameters = (
-            original_parameters
-        )
-
-        if external_response is None:
-
-            return {
-                "url":
-                    self.target_url,
-
-                "method":
-                    self.method,
-
-                "parameters":
-                    original_parameters,
-
-                "vuln":
-                    "N/A",
-
-                "result":
-                    "외부 URL 요청에 실패했습니다."
-            }
-
-        print(
-            f"    Status: "
-            f"{external_response.status_code}"
-        )
-
-        print()
-
-        # ======================================
-        # SSRF Verifier 테스트
-        # ======================================
-
-        print(
-            "[2] SSRF Verifier 테스트"
-        )
-
-        verification_id = uuid.uuid4().hex
-
-        verifier_url = (
-            f"{self.verifier_payload_url.rstrip('/')}/"
-            f"{verification_id}"
-        )
-
-        print(
-            f"    Verification ID: {verification_id}"
-        )
-
-        print(
-            f"    Payload URL: {verifier_url}"
-        )
-
-        verifier_parameters = dict(
-            self.parameters
-        )
-
-        verifier_parameters[self.parameter_name] = (
-            verifier_url
-        )
-
-        self.parameters = (
-            verifier_parameters
-        )
-
-        verifier_response = (
-            self.send_request(
-                self.target_url
-            )
-        )
-
-        self.parameters = (
-            original_parameters
-        )
-
-        if verifier_response is None:
-
-            return {
-                "url":
-                    self.target_url,
-
-                "method":
-                    self.method,
-
-                "parameters":
-                    original_parameters,
-
-                "vuln":
-                    "N/A",
-
-                "result":
-                    "SSRF Verifier 테스트 요청에 실패했습니다."
-            }
-
-        print(
-            f"    Target Status: "
-            f"{verifier_response.status_code}"
-        )
-
-        # 대상 서버가 실제로 verifier에 요청했는지 확인
-        verifier_evidence = self.check_verifier(
-            verification_id
-        )
-
-        print(
-            f"    Verifier Received: "
-            f"{verifier_evidence.get('received')}"
-        )
-
-        print()
-
-        # ======================================
-        # 응답 데이터 수집
-        # ======================================
-
-        print(
-            "[3] HTTP 응답 및 Verifier 데이터 수집"
-        )
-
-        analysis_data = {
-
-            "target": {
-
-                "url":
-                    self.target_url,
-
-                "method":
-                    self.method,
-
-                "parameters":
-                    original_parameters
-            },
-
-            "external_test": {
-
-                "request_url":
-                    external_url,
-
-                "response":
-                    self.collect_response(
-                        external_response
-                    )
-            },
-
-            "verifier_test": {
-
-                "verification_id":
-                    verification_id,
-
-                "request_url":
-                    verifier_url,
-
-                "response":
-                    self.collect_response(
-                        verifier_response
-                    ),
-
-                "verifier_evidence":
-                    verifier_evidence,
-
-                "original_test_url":
-                    internal_url
-            }
-        }
-
-        print(
-            "[+] 응답 데이터 수집 완료"
-        )
-
-        print()
-
-        # Verifier의 관측 결과로 결정론적으로 판정한다. 전역 OpenAI 분석은
-        # 통합 파이프라인에서 한 번만 수행하며 스캐너 내부에서는 호출하지 않는다.
-        received = bool(verifier_evidence.get("received"))
-        reported_id = str(verifier_evidence.get("id") or "")
-        reported_path = str(verifier_evidence.get("path") or "")
-        id_matches = reported_id == verification_id or reported_path.rstrip("/").endswith(
-            "/" + verification_id
-        )
-
-        if received and id_matches:
-            vuln = "VULNERABLE"
-            reason = "SSRF 검증 서버에서 대상 애플리케이션의 서버 측 요청을 확인했습니다."
-        elif verifier_evidence.get("error"):
-            vuln = "REVIEW"
-            reason = "검증 서버의 상태를 확인하지 못해 SSRF 여부를 판정할 수 없습니다."
-        elif received:
-            vuln = "REVIEW"
-            reason = "검증 요청은 관측됐지만 요청 식별자가 일치하지 않아 재확인이 필요합니다."
-        else:
-            vuln = "PASS"
-            reason = "SSRF 검증 서버에서 해당 요청이 관측되지 않았습니다."
-
-        result = {
             "url": self.target_url,
             "method": self.method,
-            "parameters": original_parameters,
+            "parameters": self.parameters,
             "vuln": vuln,
             "result": reason,
-            "details": analysis_data,
+            "severity": "HIGH" if vuln == "VULNERABLE" else "INFO",
+            "details": details or {},
         }
 
-        print()
+    def _form_request(self):
+        """대상 화면에서 URL 입력 폼과 최신 CSRF 값을 수집한다."""
+        try:
+            response = self.session.get(self.target_url, timeout=self.timeout)
+        except requests.RequestException:
+            return None, "SSRF 입력 폼을 가져오지 못했습니다."
+        if response.status_code != 200:
+            return None, f"SSRF 입력 폼 GET 요청이 HTTP {response.status_code}를 반환했습니다."
+        response_url = getattr(response, "url", self.target_url)
+        if urlsplit(response_url).path.rstrip("/").endswith("/login"):
+            return None, "세션이 로그인 화면으로 이동해 SSRF 입력 폼을 가져오지 못했습니다."
 
-        print(
-            f"    VULN : "
-            f"{result['vuln']}"
+        soup = BeautifulSoup(response.text, "html.parser")
+        form = next(
+            (candidate for candidate in soup.find_all("form")
+             if candidate.find(attrs={"name": self.parameter_name})),
+            None,
         )
+        if form is None:
+            return None, f"{self.parameter_name} 입력 필드가 있는 폼을 찾지 못했습니다."
 
-        print(
-            f"    RESULT: "
-            f"{result['result']}"
+        action_url = urljoin(response_url, form.get("action") or self.target_url)
+        if self._origin(action_url) != self._origin(self.target_url):
+            return None, "폼 전송 주소가 대상과 다른 출처여서 검사를 중단했습니다."
+
+        data = {}
+        preview_action = False
+        for control in form.find_all(["input", "textarea", "select", "button"]):
+            name = control.get("name")
+            if not name or control.has_attr("disabled"):
+                continue
+            kind = (control.get("type") or "").lower()
+            if control.name == "button" or kind in {"submit", "button", "reset"}:
+                if name == "action" and control.get("value") == "preview":
+                    preview_action = True
+                continue
+            if kind == "file" or (
+                kind in {"checkbox", "radio"} and not control.has_attr("checked")
+            ):
+                continue
+            if control.name == "textarea":
+                value = control.get_text()
+            elif control.name == "select":
+                option = control.find("option", selected=True) or control.find("option")
+                value = option.get("value", option.get_text()) if option else ""
+            else:
+                value = control.get("value", "")
+            data[name] = value
+
+        for name, value in self.parameters.items():
+            lowered = str(name).lower()
+            if value not in (None, "") and name != self.parameter_name \
+                    and name != "action" and "csrf" not in lowered and "token" not in lowered:
+                data[name] = value
+        data[self.parameter_name] = self.probe_url
+        # 제목을 비워 두면 대상 앱이 내부 응답의 og:title을 채워 검증 증거가 노출된다.
+        if "title" in data:
+            data["title"] = ""
+        if preview_action or "action" in data or "action" in self.parameters:
+            data["action"] = "preview"
+
+        form_method = (form.get("method") or "GET").upper()
+        if form_method != self.method:
+            return None, f"수집한 폼 메서드 {form_method}가 Sink 메서드 {self.method}와 다릅니다."
+        return (action_url, form_method, data, response.status_code), None
+
+    def scan(self):
+        """내부 서비스 고유 문구가 대상 응답에 나타나는지 확인한다."""
+        self.set_session_cookie()
+        prepared, error = self._form_request()
+        if error:
+            return self._result("REVIEW", error)
+
+        action_url, method, data, form_status = prepared
+        request_data = {"params": data} if method in {"GET", "HEAD"} else {"data": data}
+        try:
+            response = self.session.request(
+                method,
+                action_url,
+                timeout=self.timeout,
+                allow_redirects=True,
+                **request_data,
+            )
+        except requests.Timeout:
+            return self._result(
+                "REVIEW",
+                f"SSRF 검증 요청이 {self.timeout:g}초 안에 완료되지 않았습니다.",
+                {"probe_url": self.probe_url, "form_status": form_status},
+            )
+        except requests.RequestException:
+            return self._result(
+                "REVIEW",
+                "SSRF 검증 HTTP 요청을 완료하지 못했습니다.",
+                {"probe_url": self.probe_url, "form_status": form_status},
+            )
+
+        final_url = getattr(response, "url", action_url)
+        details = {
+            "probe_url": self.probe_url,
+            "parameter": self.parameter_name,
+            "action": "preview",
+            "form_status": form_status,
+            "target_status": response.status_code,
+            "final_url": final_url,
+        }
+        if urlsplit(final_url).path.rstrip("/").endswith("/login"):
+            return self._result("REVIEW", "세션이 로그인 화면으로 이동해 SSRF 검증을 완료하지 못했습니다.", details)
+        if response.status_code >= 400:
+            return self._result(
+                "REVIEW",
+                f"정상 폼으로 구성한 SSRF 검증 요청이 HTTP {response.status_code}를 반환했습니다.",
+                details,
+            )
+
+        lowered = response.text.lower()
+        marker = next((item for item in self.expected_markers if item.lower() in lowered), None)
+        if marker:
+            details["evidence_marker"] = marker
+            return self._result(
+                "VULNERABLE",
+                f"대상 응답에서 내부 서비스 접근 증거 `{marker}`를 확인했습니다.",
+                details,
+            )
+
+        alert = BeautifulSoup(response.text, "html.parser").select_one("[role=alert]")
+        if alert:
+            details["application_message"] = alert.get_text(" ", strip=True)[:300]
+        return self._result(
+            "REVIEW",
+            "정상 폼 요청은 완료됐지만 내부 서비스 접근 증거를 찾지 못했습니다.",
+            details,
         )
-
-        return result

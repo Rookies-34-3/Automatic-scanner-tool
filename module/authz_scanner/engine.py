@@ -25,6 +25,7 @@ from .http_auth import (
 
 ALLOWED_METHODS = {"GET", "HEAD"}
 DENIED_STATUSES = {401, 403, 404}
+MAX_COMPARE_CHARS = 65_536
 
 
 @dataclass
@@ -271,7 +272,11 @@ def response_similarity(
         other_text = other.text_body
     if not owner_text and not other_text:
         return 1.0
-    return round(SequenceMatcher(None, owner_text, other_text).ratio(), 4)
+    return round(SequenceMatcher(
+        None,
+        owner_text[:MAX_COMPARE_CHARS],
+        other_text[:MAX_COMPARE_CHARS],
+    ).ratio(), 4)
 
 
 def matching_sensitive_fields(

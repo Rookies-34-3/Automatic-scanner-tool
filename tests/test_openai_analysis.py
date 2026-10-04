@@ -97,10 +97,8 @@ class OpenAIAnalysisTest(unittest.TestCase):
         continuation = client.responses.create.call_args.kwargs
         self.assertEqual(continuation["tool_choice"], "none")
         self.assertFalse(continuation["store"])
-        self.assertEqual(continuation["input"][-3]["type"], "function_call")
-        self.assertEqual(continuation["input"][-2]["call_id"], "call_test")
-        self.assertEqual(json.loads(continuation["input"][-2]["output"]), [FINDING])
-        summary_input = json.loads(continuation["input"][-1]["content"])
+        self.assertEqual(len(continuation["input"]), 1)
+        summary_input = json.loads(continuation["input"][0]["content"])
         self.assertEqual(summary_input["scope"], "all_results")
         self.assertEqual(summary_input["summary"]["pass"], 1)
         self.assertEqual(summary_input["findings"][0]["url"], FINDING["url"])
@@ -122,7 +120,7 @@ class OpenAIAnalysisTest(unittest.TestCase):
                     execute.assert_not_called()
                 self.assertEqual(client.responses.create.call_count, 1)
 
-    def test_incomplete_summary_is_not_returned_as_finished(self):
+    def test_incomplete_summary_preserves_scanner_results(self):
         client = self.client(selection())
         client.responses.create.side_effect = [
             selection(),
@@ -130,8 +128,11 @@ class OpenAIAnalysisTest(unittest.TestCase):
         ]
         with patch.object(openai_module, "get_openai_client", return_value=client), \
                 patch.object(openai_module, "execute_tool", return_value=[FINDING]):
-            with self.assertRaisesRegex(ValueError, "AI 요약이 완료되지"):
-                openai_module.analyze_sinks(PAYLOAD)
+            report = openai_module.analyze_sinks(PAYLOAD)
+        self.assertEqual(report["summary_status"], "fallback")
+        self.assertEqual(report["summary_scope"], "scanner_results")
+        self.assertEqual(report["tool_results"], [FINDING])
+        self.assertIn("PASS 1건", report["summary"])
 
     def test_large_candidate_set_is_split_into_safe_selection_batches(self):
         payload = {"candidate_status": "unverified", "groups": []}
@@ -165,11 +166,16 @@ class OpenAIAnalysisTest(unittest.TestCase):
             return [{**FINDING, "url": arguments["url"],
                      "vuln": "VULNERABLE" if index in (0, 20, 40) else "PASS"}]
 
+        progress = []
         with patch.object(openai_module, "get_openai_client", return_value=client), \
                 patch.object(openai_module, "execute_tool", side_effect=execute_finding) as execute:
-            report = openai_module.analyze_sinks(payload)
+            report = openai_module.analyze_sinks(payload, on_progress=progress.append)
 
         self.assertEqual(report["selection_batch_count"], 3)
+        selection_progress = [message for message in progress if message.startswith("AI")]
+        self.assertEqual(selection_progress, [
+            "AI가 점검할 스캐너를 선택하고 있습니다.",
+        ] * 3)
         self.assertEqual(report["tool_call_count"], 41)
         self.assertEqual(execute.call_count, 41)
         self.assertEqual(client.responses.create.call_count, 4)
@@ -186,6 +192,7 @@ class OpenAIAnalysisTest(unittest.TestCase):
         self.assertEqual([finding["url"] for finding in summary_input["confirmed_findings"]],
                          [f"{URL}/{index}" for index in (0, 20, 40)])
         self.assertEqual(report["summary_scope"], "all_results")
+        self.assertEqual(report["summary_status"], "completed")
 
 
 if __name__ == "__main__":

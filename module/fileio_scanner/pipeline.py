@@ -1,6 +1,6 @@
 """ROOKIESCAN 공통 파이프라인 어댑터 (fileio 스캐너).
 
-공통 입력(url/method/parameters) + 자기 config(계정 등)를 받아 스캔하고,
+공통 입력(url/method/parameters) + 자기 config를 받아 스캔하고,
 공통 출력 스키마(finding-output.schema.json)로 결과를 쓴다.
 
 실행 계약 (runner.py 가 서브프로세스로 호출):
@@ -10,11 +10,11 @@
 config(native, 자기 설정) 예:
 {
   "base_url": "http://127.0.0.1:8080",      # runner 가 target.base_url 로 덮어씀
-  "login_path": "/login",
-  "accounts": {                              # 비밀번호는 환경변수로
-    "victim":   { "userId": "student1", "password_env": "ROOKIESCAN_PASSWORD" },
-    "attacker": { "userId": "student2", "password_env": "ROOKIESCAN_PASSWORD" },
-    "admin":    { "userId": "admin",    "password_env": "ROOKIESCAN_PASSWORD" }
+  "sessions": {                              # 세션 값은 환경변수로
+    "victim":  { "cookie_name": "sslc_lab_session",
+                  "cookie_env": "ROOKIESCAN_VICTIM_SESSION" },
+    "attacker": { "cookie_name": "sslc_lab_session",
+                  "cookie_env": "ROOKIESCAN_ATTACKER_SESSION" }
   },
   "endpoints": [                             # runner 가 공통 입력으로 채움(선택)
     { "url": ".../my-class/board/write/qna", "method": "POST",
@@ -51,15 +51,18 @@ UPLOAD_HINT = ("Upload", "Extension", "MIME", "Magic", "Stored XSS", "SVG",
                "Broken Access Control")
 
 
-def _password(account: dict) -> str:
-    """환경변수에서만 비밀번호를 읽어 설정/결과 파일 노출을 방지한다."""
-    # The integrated UI may pass a password in memory.  It is never written to
-    # the config/report and is preferred only for this scanner invocation.
-    direct = account.get("password")
-    if direct:
-        return str(direct)
-    env = account.get("password_env")
-    return os.environ.get(env, "") if env else ""
+def _session_auth(session: object, role: str) -> dict | None:
+    """런타임 쿠키 또는 쿠키 환경변수를 내부 인증 설정으로 바꾼다."""
+    if not isinstance(session, dict):
+        return None
+    cookies = session.get("cookies")
+    if not isinstance(cookies, dict) or not cookies:
+        env_name = str(session.get("cookie_env") or "")
+        value = os.environ.get(env_name, "") if env_name else ""
+        if not value:
+            return None
+        cookies = {str(session.get("cookie_name") or "sslc_lab_session"): value}
+    return {"type": "session", "cookies": dict(cookies), "label": role}
 
 
 def _path_of(url: str) -> str:
@@ -77,15 +80,11 @@ def resolve_config(native: dict) -> dict:
         "login_path": native.get("login_path", "/login"),
         "verify_tls": native.get("verify_tls", True),
     }
-    # 계정 → credentials (비밀번호는 env 에서)
-    accounts = native.get("accounts") or {}
-    creds = {}
-    for role in ("victim", "attacker", "admin"):
-        a = accounts.get(role)
-        if isinstance(a, dict) and a.get("userId"):
-            creds[role] = {"userId": a["userId"], "password": _password(a)}
-    if creds:
-        cfg["credentials"] = creds
+    role_keys = {"victim": "auth", "attacker": "attacker_auth", "admin": "admin_auth"}
+    for role, key in role_keys.items():
+        auth = _session_auth((native.get("sessions") or {}).get(role), role)
+        if auth:
+            cfg[key] = auth
 
     # 엔드포인트 → 업로드/다운로드 경로 유도.
     # runner 가 넘기는 형태({path, method})와 공통 입력({url, method, parameters}) 둘 다 수용.

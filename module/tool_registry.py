@@ -11,7 +11,7 @@ from .scanner_tools import SCANNERS
 DESCRIPTIONS = {
     "scan_sqli": "SQL 오류 및 Boolean 응답 차이로 SQL Injection을 점검합니다.",
     "scan_reflected_xss": "입력값의 반사 위치와 인코딩 여부로 Reflected XSS를 점검합니다.",
-    "scan_ssrf": "외부 검증 서버의 콜백 증거로 SSRF를 점검합니다.",
+    "scan_ssrf": "정상 폼으로 내부 URL을 요청하고 응답 증거로 SSRF를 점검합니다.",
     "scan_authn": "인증 및 비로그인 응답을 비교해 인증 절차 누락을 점검합니다.",
     "scan_authz": "서로 다른 계정의 객체 접근 결과를 비교해 IDOR/BOLA를 점검합니다.",
     "scan_fileio": "파일 업로드·다운로드의 확장자, 경로 및 접근 제어를 점검합니다.",

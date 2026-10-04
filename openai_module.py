@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 import report_writer
 
 from module.tool_registry import (
@@ -139,7 +139,7 @@ def _selection_batches(openai_sinks: dict, limit: int = MAX_CALLS_PER_SELECTION)
     return batches
 
 
-def summarize_results(analysis: dict, client: OpenAI, messages: list | None = None):
+def summarize_results(analysis: dict, client: OpenAI):
     """집계값과 전체 판정을 전달해 모든 확인된 취약점을 요약한다."""
     snapshot = report_writer.build_scan_report("", analysis)
     fields = ("scanner_id", "name", "url", "method", "parameters", "vuln", "result", "severity")
@@ -151,8 +151,8 @@ def summarize_results(analysis: dict, client: OpenAI, messages: list | None = No
         "confirmed_findings": [finding for finding in findings if finding["vuln"] == "VULNERABLE"],
         "findings": findings,
     }
-    # 마지막 분할 입력 대신 전체 결과를 마지막 메시지로 명시한다.
-    summary_input = [*(messages or []), {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
+    # 도구 호출 이력을 다시 보내지 않고 전체 판정만 한 번 전달한다.
+    summary_input = [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
     response = client.responses.create(
         model=analysis.get("model") or os.getenv("OPENAI_MODEL", "gpt-6.1-sol"),
         instructions=(
@@ -167,13 +167,42 @@ def summarize_results(analysis: dict, client: OpenAI, messages: list | None = No
         ),
         input=summary_input,
         reasoning={"effort": "low"},
-        max_output_tokens=4096,
+        max_output_tokens=8192,
         tool_choice="none",
         store=False,
     )
     if response.status != "completed" or not response.output_text.strip():
-        raise ValueError("AI 요약이 완료되지 않았습니다. 다시 시도하세요.")
+        incomplete = getattr(response, "incomplete_details", None)
+        reason = getattr(incomplete, "reason", None)
+        suffix = f" ({reason})" if reason else ""
+        raise ValueError(f"AI 요약이 완료되지 않았습니다{suffix}. 다시 시도하세요.")
     return response
+
+
+def _scanner_result_summary(analysis: dict) -> str:
+    """AI 요약이 중단돼도 모든 확정 판정이 보이도록 기본 요약을 만든다."""
+    snapshot = report_writer.build_scan_report("", analysis)
+    counts = snapshot["summary"]
+    lines = [
+        "AI 요약이 완료되지 않아 스캐너 판정 결과를 직접 표시합니다.",
+        "",
+        (f"판정 집계: VULNERABLE {counts['vulnerable']}건, PASS {counts['pass']}건, "
+         f"REVIEW {counts['review']}건, ERROR {counts['error']}건"),
+    ]
+    confirmed = [item for item in snapshot["findings"] if item["vuln"] == "VULNERABLE"]
+    if not confirmed:
+        lines.extend(["", "확인된 취약점이 없습니다."])
+        return "\n".join(lines)
+
+    lines.extend(["", "확인된 취약점"])
+    for finding in confirmed:
+        parameters = ", ".join(item["name"] for item in finding["parameters"]) or "-"
+        lines.extend([
+            f"- [{finding['severity']}] {finding['name']} — {finding['method']} {finding['url']}",
+            f"  - 입력 필드: {parameters}",
+            f"  - 근거: {finding['result']}",
+        ])
+    return "\n".join(lines)
 
 
 def analyze_sinks(
@@ -215,16 +244,11 @@ def analyze_sinks(
         "tools": TOOL_SCHEMAS,
         "store": False,
     }
-    messages = []
-
     with get_openai_client().with_options(timeout=90, max_retries=0) as client:
         seen = set()
         findings = []
-        for batch_index, batch in enumerate(batches, 1):
-            progress(
-                f"AI 스캐너 선택 {batch_index}/{len(batches)} · "
-                f"전체 후보 {expected_total}개를 분할 처리하고 있습니다."
-            )
+        for batch in batches:
+            progress("AI가 점검할 스캐너를 선택하고 있습니다.")
             batch_messages = [{"role": "user", "content": json.dumps(batch, ensure_ascii=False)}]
             selection = client.responses.create(
                 **options,
@@ -238,7 +262,6 @@ def analyze_sinks(
             if len(calls) > MAX_CALLS_PER_SELECTION:
                 raise ValueError("AI의 단일 스캐너 호출 수가 안전 제한을 초과했습니다.")
 
-            outputs_by_call = {}
             for call in calls:
                 try:
                     arguments = validate_arguments(json.loads(call.arguments))
@@ -253,7 +276,6 @@ def analyze_sinks(
                     raise ValueError("AI가 Sink 탐색 결과에 없는 스캐너 또는 입력 지점을 요청했습니다.")
                 dedupe_key = (call.name, request_key)
                 if dedupe_key in seen:
-                    outputs_by_call[call.call_id] = []
                     continue
                 seen.add(dedupe_key)
                 progress(f"{call.name} 실행 중: {arguments['method']} {arguments['url']}")
@@ -263,21 +285,31 @@ def analyze_sinks(
                     session_cookie=session_cookie,
                     options=scanner_options,
                 )
-                outputs_by_call[call.call_id] = tool_findings
                 findings.extend(tool_findings)
 
-            messages.extend(batch_messages)
-            messages.extend(item.model_dump(exclude_none=True) for item in selection.output)
-            for call in calls:
-                messages.append({
-                    "type": "function_call_output",
-                    "call_id": call.call_id,
-                    "output": json.dumps(outputs_by_call[call.call_id], ensure_ascii=False),
-                })
         progress(f"스캐너 {len(seen)}회 실행 완료. AI가 근거를 정리하고 있습니다.")
-        response = summarize_results({
+        analysis = {
             "model": options["model"], "tool_call_count": len(seen), "tool_results": findings,
-        }, client, messages)
+        }
+        try:
+            response = summarize_results(analysis, client)
+        except (OpenAIError, ValueError) as exc:
+            progress("스캐너 검사는 완료됐습니다. AI 요약은 다시 시도할 수 있습니다.")
+            summary_error = (
+                str(exc) if isinstance(exc, ValueError)
+                else "OpenAI 요약 요청을 완료하지 못했습니다."
+            )
+            return {
+                "model": options["model"],
+                "group_count": len(groups),
+                "selection_batch_count": len(batches),
+                "tool_call_count": len(seen),
+                "summary_scope": "scanner_results",
+                "summary_status": "fallback",
+                "summary_error": summary_error,
+                "summary": _scanner_result_summary(analysis),
+                "tool_results": findings,
+            }
 
     return {
         "model": response.model,
@@ -285,6 +317,7 @@ def analyze_sinks(
         "selection_batch_count": len(batches),
         "tool_call_count": len(seen),
         "summary_scope": "all_results",
+        "summary_status": "completed",
         "summary": response.output_text.strip(),
         "tool_results": findings,
     }

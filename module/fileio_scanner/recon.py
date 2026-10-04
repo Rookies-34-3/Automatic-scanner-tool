@@ -6,17 +6,15 @@
   {
     "target_name": "...",
     "base_url": "http://...",
-    "login_path": "/login",
-    "accounts": {
-      "victim":   {"userId": "...", "password_env": "ROOKIESCAN_PASSWORD"},
-      "attacker": {"userId": "...", "password_env": "ROOKIESCAN_PASSWORD"},
-      "admin":    {"userId": "...", "password_env": "ROOKIESCAN_PASSWORD"}
+    "sessions": {
+      "victim":  {"cookies": {"sslc_lab_session": "..."}},
+      "attacker": {"cookies": {"sslc_lab_session": "..."}}
     },
     "upload_path": "/my-class/board/write/qna",
     "notice_path": "/my-class/board/write/notice"          # 선택(접근제어용)
   }
 
-이 모듈이 폼을 파싱해 csrf 필드명/계정 필드명/파일 필드명/허용확장자/
+이 모듈이 폼을 파싱해 csrf 필드명/파일 필드명/허용확장자/
 다운로드 링크 패턴/ID 범위를 자동으로 채워 '완전한 cfg' 로 변환한다.
 기존의 상세(verbose) 설정도 그대로 호환된다(이미 채워진 값은 건드리지 않음).
 """
@@ -67,28 +65,6 @@ def _find_csrf(inputs):
                                       or "token" in i["name"].lower()):
             return i["name"]
     return None
-
-
-# ---------- 로그인 폼 자동 탐지 ----------
-def detect_login(client, login_path):
-    """로그인 페이지 폼에서 csrf/아이디/비번 필드명을 알아낸다."""
-    html = client.get(login_path).text
-    forms = parse_forms(html)
-    # 비밀번호 input 이 있는 폼을 로그인 폼으로 간주
-    login_form = None
-    for f in forms:
-        if any(i["type"] == "password" for i in f["inputs"]):
-            login_form = f
-            break
-    if not login_form:
-        return {}
-    csrf = _find_csrf(login_form["inputs"])
-    pw = next((i["name"] for i in login_form["inputs"] if i["type"] == "password"), "password")
-    user = next((i["name"] for i in login_form["inputs"]
-                 if i["type"] in ("text", "email", "tel") and i["name"] and i["name"] != csrf),
-                "username")
-    return {"csrf_field": csrf, "user_field": user, "pw_field": pw,
-            "action": login_form["action"] or login_path}
 
 
 # ---------- 업로드 폼 자동 탐지 ----------
@@ -158,41 +134,13 @@ def detect_download(client, up_cfg):
 
 
 # ---------- 설정 정규화(핵심 진입점) ----------
-def _auth_block(login_info, login_path, creds):
-    if not creds:
-        return None
-    return {
-        "type": "form",
-        "login_path": login_path,
-        "csrf_field": login_info.get("csrf_field"),
-        "fields": {login_info.get("user_field", "username"): creds.get("userId", creds.get("username", "")),
-                   login_info.get("pw_field", "password"): creds.get("password", "")},
-        "success_check_path": None,
-    }
-
-
 def normalize(cfg):
     """minimal/verbose 설정을 받아 '완전한 cfg' 로 채워 반환.
 
     이미 값이 있으면 보존, 없으면 자동 탐지/기본값으로 채운다.
     """
     base = cfg["base_url"]
-    probe = Client(base, verify_tls=cfg.get("verify_tls", True), proxy=cfg.get("proxy"))
-
-    # 1) 로그인 정보 자동 탐지 (minimal: login_path + credentials 사용)
-    login_path = cfg.get("login_path") or cfg.get("auth", {}).get("login_path", "/login")
-    login_info = detect_login(probe, login_path)
-
-    creds = cfg.get("credentials", {})
-    # verbose 설정(auth/attacker_auth/admin_auth)이 이미 있으면 그대로 사용
-    if not cfg.get("auth") and creds.get("victim"):
-        cfg["auth"] = _auth_block(login_info, login_path, creds["victim"])
-    if not cfg.get("attacker_auth") and creds.get("attacker"):
-        cfg["attacker_auth"] = _auth_block(login_info, login_path, creds["attacker"])
-    if not cfg.get("admin_auth") and creds.get("admin"):
-        cfg["admin_auth"] = _auth_block(login_info, login_path, creds["admin"])
-
-    # success_check_path: 업로드 경로로 기본 설정(로그인해야 접근되는 곳)
+    # 1) success_check_path: 업로드 경로로 기본 설정(로그인해야 접근되는 곳)
     up_path = cfg.get("upload_path") or cfg.get("upload", {}).get("path")
     for key in ("auth", "attacker_auth", "admin_auth"):
         if cfg.get(key) and not cfg[key].get("success_check_path"):
@@ -239,7 +187,7 @@ def normalize(cfg):
             "success_indicators": [],
         }
 
-    cfg["_recon"] = {"login_detected": login_info,
+    cfg["_recon"] = {"session_auth": bool(cfg.get("auth")),
                      "upload_field": cfg.get("upload", {}).get("file_field"),
                      "download": cfg.get("download")}
     return cfg

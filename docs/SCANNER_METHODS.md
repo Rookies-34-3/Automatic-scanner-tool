@@ -8,7 +8,7 @@
 |---|---|---|---|
 | SQL Injection | `module/sqli/scanner.py` | `scan_sqli` | 없음 |
 | Reflected XSS | `module/xss/reflected_xss.py` | `scan_reflected_xss` | 없음 |
-| SSRF | `module/ssrf/scanner.py` | `scan_ssrf` | `SSRF_VERIFIER_PAYLOAD_URL`, `SSRF_VERIFIER_STATUS_URL` |
+| SSRF | `module/ssrf/scanner.py` | `scan_ssrf` | 선택: `SSRF_PROBE_URL`, `SSRF_EXPECTED_MARKERS` |
 | 불충분한 인증 | `module/authn_scanner/` | `scan_authn` | 선택: `ROOKIESCAN_AUTHN_CONFIG`, `ROOKIESCAN_PASSWORD` |
 | IDOR/BOLA | `module/authz_scanner/` | `scan_authz` | `ROOKIESCAN_AUTHZ_CONFIG`, `ROOKIESCAN_PASSWORD` |
 | 파일 업로드/다운로드 | `module/fileio_scanner/` | `scan_fileio` | `ROOKIESCAN_FILEIO_CONFIG`, `ROOKIESCAN_PASSWORD` |

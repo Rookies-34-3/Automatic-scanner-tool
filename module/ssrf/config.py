@@ -1,33 +1,18 @@
+"""SSRF 검사 기본값."""
+
 import os
 
 
-# ==============================
-# Scanner
-# ==============================
-
-TIMEOUT = 10
-
-
-# ==============================
-# OpenAI
-# ==============================
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-# ==============================
-# SSRF Verifier
-# ==============================
-
-# 대상 웹 서버가 Docker 내부에서 접근할 검증 URL
-VERIFIER_PAYLOAD_URL = os.getenv(
-    "SSRF_VERIFIER_PAYLOAD_URL",
-    "http://ssrf-verifier:9001/check"
+TIMEOUT = float(os.getenv("SSRF_TIMEOUT", "5"))
+PROBE_URL = os.getenv(
+    "SSRF_PROBE_URL",
+    "http://internal-service:9000/course",
 )
-
-# Scanner PC가 외부에서 조회할 검증 결과 URL
-VERIFIER_STATUS_URL = os.getenv(
-    "SSRF_VERIFIER_STATUS_URL",
-    "http://127.0.0.1:8080/ssrf-verify/status"
+EXPECTED_MARKERS = tuple(
+    marker.strip()
+    for marker in os.getenv(
+        "SSRF_EXPECTED_MARKERS",
+        "SSRF SUCCESS - internal-service reached|internal-service:9000 reached",
+    ).split("|")
+    if marker.strip()
 )
-
-VERIFIER_TIMEOUT = 5
