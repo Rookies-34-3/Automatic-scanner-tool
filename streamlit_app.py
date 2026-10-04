@@ -3,7 +3,7 @@
 ROOKIESCAN 도구 실행 및 보고서 출력하는 streamlit 기반 웹
 '''
 
-from collections import Counter
+import runpy
 from importlib import reload
 from pathlib import Path
 import json
@@ -28,7 +28,7 @@ st.title("ROOKIESCAN")
 if "analysis_result" in st.session_state and "tool_results" not in st.session_state["analysis_result"]:
     st.session_state.pop("analysis_result")
 
-# show_report와 show_analysis 값으로 입력·Sink 보고서·AI 보고서 화면을 전환
+# show_report와 show_analysis 값으로 입력·Sink 보고서·대시보드 화면을 전환
 if not st.session_state.get("show_report", False):
     # 제목과 입력 폼 사이에 작은 간격
     st.space("small")
@@ -116,7 +116,7 @@ elif not st.session_state.get("show_analysis", False):
 
 else:
     analysis_title = st.empty()
-    analysis_title.subheader("분석 보고서" if "analysis_result" in st.session_state else "취약점 분석 중")
+    analysis_title.subheader("대시보드" if "analysis_result" in st.session_state else "취약점 분석 중")
     st.write("대상 URL:", st.session_state["scan_target_url"])
     # AI 요청과 임시 tool 처리의 진행 상태를 표시
     if st.session_state.pop("analysis_pending", False):
@@ -165,76 +165,19 @@ else:
     if "analysis_error" in st.session_state:
         analysis_title.subheader("취약점 분석 실패")
         st.error(st.session_state["analysis_error"])
-    # 저장된 결과를 보여주므로 화면을 다시 그려도 API를 재호출하지 않는다.
+    # 저장된 분석 결과를 재사용하고, 같은 디렉터리에 병합될 대시보드를 실행한다.
     if "analysis_result" in st.session_state:
-        analysis_title.subheader("분석 보고서")
+        analysis_title.empty()
         report = st.session_state["analysis_result"]
-        st.caption(f"모델: {report['model']} · 분석 대상 {report['group_count']}개 그룹 "
-                   f"· 스캐너 호출 {report['tool_call_count']}회 · 결과 {len(report['tool_results'])}건")
-        if report.get("json_path"):
-            st.caption(f"최종 JSON 파일: output/{Path(report['json_path']).name}")
-        # AI 문장이 아닌 원본 결과를 집계해 숫자와 확인된 항목을 표시한다.
-        snapshot = report_writer.build_scan_report(st.session_state["scan_target_url"], report)
-        counts = snapshot["summary"]
-        st.subheader("판정 집계")
-        st.table([{
-            "전체 결과": counts["total_findings"],
-            "VULNERABLE": counts["vulnerable"], "PASS": counts["pass"],
-            "REVIEW": counts["review"], "ERROR": counts["error"],
-        }])
-        st.caption("세부 판정 기준입니다. 같은 기능의 URL 변형은 별도 항목으로 집계합니다.")
-
-        st.subheader("확인된 취약점")
-        confirmed = [finding for finding in snapshot["findings"] if finding["vuln"] == "VULNERABLE"]
-        if confirmed:
-            by_name = Counter(finding["name"] for finding in confirmed)
-            st.table([
-                {"취약점": name, "확인 건수": count}
-                for name, count in sorted(by_name.items(), key=lambda item: (-item[1], item[0]))
-            ])
+        # app.py에서 이 경로를 읽으면 방금 저장한 최종 JSON을 사용할 수 있다.
+        st.session_state["scan_report_path"] = report.get("json_path")
+        dashboard_path = Path(__file__).with_name("app.py")
+        if dashboard_path.is_file():
+            runpy.run_path(str(dashboard_path), run_name="__main__")
         else:
-            st.write("취약 판정으로 기록된 항목이 없습니다.")
+            st.info("분석이 완료되었습니다. 같은 디렉터리에 app.py를 추가하면 대시보드가 표시됩니다.")
 
-        st.subheader(
-            "AI 분석 답변"
-            if report.get("summary_scope") == "all_results"
-            else "스캐너 결과 요약"
-        )
-        if report.get("summary_scope") == "all_results":
-            st.markdown(report["summary"])
-        else:
-            # 스캐너를 다시 실행하지 않고 저장된 전체 결과의 AI 요약만 재시도한다.
-            st.warning("스캐너 검사는 완료됐지만 AI 요약이 끝나지 않았습니다. 검사 결과는 보존됐습니다.")
-            if st.button("AI 요약 다시 시도"):
-                try:
-                    with st.spinner("전체 결과로 AI 답변을 작성 중입니다."):
-                        ai_module = reload(openai_module)
-                        with ai_module.get_openai_client().with_options(timeout=90, max_retries=0) as client:
-                            response = ai_module.summarize_results(report, client)
-                        updated = {**report, "model": response.model,
-                                   "summary": response.output_text.strip(),
-                                   "summary_scope": "all_results", "summary_status": "completed"}
-                        updated.pop("summary_error", None)
-                        updated_json = report_writer.build_scan_report(st.session_state["scan_target_url"], updated)
-                        updated["json_path"] = str(report_writer.save_scan_report(
-                            updated_json, st.session_state["scan_target_url"],
-                        ))
-                except (ValueError, OSError, OpenAIError) as exc:
-                    st.error(f"AI 답변을 갱신하지 못했습니다 ({type(exc).__name__}). 기존 결과는 유지됩니다.")
-                else:
-                    st.session_state["analysis_result"] = updated
-                    st.rerun()
-            st.markdown(report["summary"])
-
-        st.subheader("전체 검사 결과")
-        st.dataframe([{
-            "메서드": result["method"], "URL": result["url"],
-            "입력 필드": ", ".join(f"{p['name']} ({p['location']})" for p in result["parameters"]) or "-",
-            "스캐너": result["scanner_id"], "판정": result["vuln"],
-            "위험도": result["severity"], "근거": result["result"],
-        } for result in report["tool_results"]], hide_index=True)
-
-    # AI 보고서에서 돌아가면 저장된 Sink 탐색 보고서를 보여준다.
+    # 대시보드에서 돌아가면 저장된 Sink 탐색 보고서를 보여준다.
     with st.container(horizontal=True, horizontal_alignment="distribute"):
         if st.button("뒤로가기"):
             st.session_state["show_analysis"] = False
