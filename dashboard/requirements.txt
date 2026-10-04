@@ -1,3 +1,4 @@
 streamlit
 pandas
+altair
 openai>=2.0.0

@@ -1,5 +1,7 @@
 # AI Vulnerability Analysis
 
+> Streamlit 대시보드는 `dashboard/app.py`에서 실행합니다. 기본 UI 연동 설정은 아래의 "대시보드 연동 설정"을 참고하세요.
+
 통합 취약점 스캐너에서 생성된 결과 JSON을 입력으로 받아 OpenAI API를 통해 취약점 분석을 수행하고, Streamlit Dashboard에서 사용할 수 있는 분석 결과 JSON을 생성합니다.
 
 ## 1. 개요
@@ -538,3 +540,16 @@ Streamlit Dashboard
 ```
 
 AI Analyzer는 취약점을 직접 탐지하지 않으며, 실제 Scanner가 생성한 결과를 기반으로 분석 및 설명을 수행합니다.
+
+## 대시보드 연동 설정
+
+`app.py` 상단의 설정값으로 통합 스캐너 결과, 분석 결과 및 보고서 모듈을 지정합니다.
+
+```python
+SCANNER_RESULT_FILENAME = "demo_scan_result_varied.json"
+ANALYSIS_RESULT_FILENAME = "analysis.json"
+REPORT_MODULE_NAME = "report"
+REPORT_FUNCTION_NAME = "run"
+```
+
+상대 경로는 `app.py`가 있는 폴더를 기준으로 합니다. 사이드바에서 JSON을 업로드하면 설정된 기본 파일보다 업로드 파일을 우선 사용합니다. 보고서 생성 버튼은 `report.py`의 `run()`을 인자 없이 호출합니다.
