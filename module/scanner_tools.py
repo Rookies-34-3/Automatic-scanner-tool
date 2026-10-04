@@ -227,12 +227,28 @@ def scan_fileio(url: str, method: str, parameters: Any, session_cookie: Any = ""
     native["sessions"] = sessions
     native.pop("accounts", None)
     native["base_url"] = _origin(url)
-    native["endpoints"] = [{
-        "url": url,
-        "method": method,
-        "parameters": public_parameters(parameters),
-    }]
-    raws = run_fileio_native(native)
+
+    # fileio is a scenario scanner: one run needs the upload form and the
+    # download template together.  Replacing its configured endpoints with
+    # every discovered URL made directory pages and stored files look like
+    # upload forms, and repeated the same account scan for every sink.
+    # Keep the complete configured scenario and run it once per target.
+    if not native.get("endpoints") and not native.get("upload_path") and not native.get("download"):
+        native["endpoints"] = [{
+            "url": url,
+            "method": method,
+            "parameters": public_parameters(parameters),
+        }]
+
+    scan_key = native["base_url"]
+    completed = options.setdefault("_fileio_completed_targets", set())
+    if scan_key in completed:
+        return []
+
+    # Missing optional admin/private-resource scenarios are not findings.
+    # The integrated report should contain only checks that actually ran.
+    raws = run_fileio_native(native, include_skipped=False)
+    completed.add(scan_key)
     adapted = []
     for raw in raws:
         item = dict(raw)

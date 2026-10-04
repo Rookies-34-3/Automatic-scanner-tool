@@ -316,7 +316,11 @@ def check_enumeration(cfg) -> list[Finding]:
     # 열거 범위 상한: DB 가 커져도 속도가 일정하도록 스캔할 ID 개수를 제한.
     # 범위가 상한보다 크면 '최근(높은 ID)' 쪽 window 만 스캔한다.
     start, end = rng[0], rng[1]
-    max_scan = dl.get("id_max_scan", 100)
+    # The bundled SSLC scenario uses IDs from the beginning of the range.
+    # A 100-item tail window over 1..200 skipped every currently existing
+    # file (IDs were below 100), producing a false PASS.  Keep the request
+    # count bounded while covering the complete documented default range.
+    max_scan = dl.get("id_max_scan", 200)
     scan_start = start
     if max_scan and (end - start + 1) > max_scan:
         scan_start = end - max_scan + 1
@@ -348,7 +352,7 @@ def check_enumeration(cfg) -> list[Finding]:
                "ui_crawl_complete": crawl_complete,
                "hidden_from_ui_count": (len(hidden) if hidden is not None else None),
                "hidden_from_ui_sample": (hidden[:10] if hidden else [])}
-    f = Finding(category="IDOR - Enumeration (Download)",
+    f = Finding(category="Unrestricted File Enumeration (Download)",
                 target_url=c.url(tpl), method="GET", parameter="id",
                 payload=f"{scanned_window[0]}..{scanned_window[1]}",
                 status_code=200, details=details)
@@ -358,9 +362,23 @@ def check_enumeration(cfg) -> list[Finding]:
     #  - 접근된 게 '전부' UI 에 보이면 → 공유 자원이 증명됨(SAFE)
     #  - 안 보이는 게 있으면 → 진짜 IDOR 일 수도, 단지 안 크롤한 글일 수도 → POTENTIAL(수동확인)
     #  - 수평/수직 IDOR 체크가 '특정 파일'로 확증을 담당하고, 열거는 '넓은 스윕 단서' 역할
+    threshold = int(dl.get("enumeration_vulnerable_threshold", 10))
     if not accessible:
         f.result, f.severity = SAFE, SEV_INFO
         f.evidence = "접근 가능한 파일 없음"
+    elif len(accessible) >= threshold:
+        f.result, f.severity = VULNERABLE, MEDIUM
+        hidden_note = (
+            f", 표본 UI에서 보이지 않은 파일 {len(hidden)}개 포함"
+            if hidden is not None and hidden else ""
+        )
+        f.evidence = (
+            f"예측 가능한 순차 ID로 인증 사용자에게 파일 {len(accessible)}개가 연속 노출됨"
+            f"{hidden_note} - 파일 ID 대입만으로 대량 다운로드 가능한 열거 취약점 확인"
+        )
+        details["structural_weakness"] = (
+            "predictable_sequential_id + unrestricted_bulk_download"
+        )
     elif hidden is None:
         f.result, f.severity = POTENTIAL, MEDIUM
         f.evidence = (f"순차 ID 열거로 {len(accessible)}개 접근 가능. "

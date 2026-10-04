@@ -221,11 +221,22 @@ def _judge(category, fname, sev, note, target, field, resp, accepted,
             base.result, base.severity = VULNERABLE, HIGH
             base.evidence = f"파일명 미살균: 저장명에 경로구분자 잔존('{stored_name}') → 디렉토리 이탈 가능"
         elif stored_name and ".." in stored_name:
-            base.result, base.severity = POTENTIAL, LOW
-            base.evidence = f"저장명에 '..' 잔존하나 경로구분자는 제거됨('{stored_name}') - 이탈 가능성 낮음"
+            base.result, base.severity = SAFE, SEV_INFO
+            base.evidence = f"경로구분자가 제거되어 상위 디렉터리 이동이 발생하지 않음(저장명='{stored_name}')"
         else:
-            base.result, base.severity = SAFE, LOW
+            base.result, base.severity = SAFE, SEV_INFO
             base.evidence = "수락되었으나 파일명 정규화됨"
+        return base
+
+    # CR/LF 문자열이 파일명으로 수락됐다는 사실만으로 헤더 분할 취약점은
+    # 성립하지 않는다. 저장명이나 응답 헤더에 실제 개행 영향이 있어야 확증한다.
+    if category.startswith("Filename Injection (CRLF)"):
+        if "\r" in stored_name or "\n" in stored_name:
+            base.result, base.severity = VULNERABLE, LOW
+            base.evidence = "저장 파일명에 CR/LF가 남아 응답 헤더 분할 가능성이 확인됨"
+        else:
+            base.result, base.severity = SAFE, SEV_INFO
+            base.evidence = "CR/LF 파일명을 전송했으나 저장명·응답 헤더에 개행 영향이 확인되지 않음"
         return base
 
     # 위험 확장자/우회류: 수락 자체가 문제
@@ -234,9 +245,26 @@ def _judge(category, fname, sev, note, target, field, resp, accepted,
         base.result, base.severity = VULNERABLE, sev
         base.evidence = f"허용목록 외 확장자('{ext}')가 업로드 수락됨 - 서버측 확장자 검증 미흡"
     elif allowed and ext in allowed:
-        # 최종 확장자는 허용목록이지만 내용이 코드(폴리글랏/MIME위조)
-        base.result, base.severity = POTENTIAL, MEDIUM
-        base.evidence = "최종 확장자는 허용목록이나 내용/MIME 불일치 - 매직바이트 검증 부재 가능"
+        # 최종 확장자가 허용목록이어도, 서버측 코드가 든 이중 확장자나
+        # 폴리글랏이 실제 저장되고 동일 내용으로 다시 제공되면 내용 검증
+        # 우회는 관찰이 아니라 확증이다. 실행 가능성은 별도 단계의 문제다.
+        content_bypass = category.startswith((
+            "Extension Bypass - Double Extension",
+            "Content Validation Bypass (Magic Bytes)",
+        ))
+        if content_bypass and retrievable:
+            base.result = VULNERABLE
+            base.severity = sev if sev in (CRITICAL, HIGH, MEDIUM) else MEDIUM
+            base.evidence = (
+                "코드가 포함된 이중 확장자/폴리글랏 파일이 저장되고 동일 내용으로 "
+                "다운로드되어 서버측 파일 내용 검증 우회가 확인됨"
+            )
+        elif content_bypass:
+            base.result, base.severity = POTENTIAL, MEDIUM
+            base.evidence = "우회 파일 업로드는 수락됐으나 저장 파일을 되받지 못해 수동 확인 필요"
+        else:
+            base.result, base.severity = SAFE, SEV_INFO
+            base.evidence = "허용 확장자 파일이 정상 정책 범위에서 처리됨"
     else:
         base.result, base.severity = VULNERABLE, sev
         base.evidence = "위험 파일 업로드가 수락됨"

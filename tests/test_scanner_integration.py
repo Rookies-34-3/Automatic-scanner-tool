@@ -12,6 +12,7 @@ from module.tool_registry import SCANNERS, TOOL_SCHEMAS, execute_tool
 from module.ssrf.scanner import SSRFScanner
 from module.sqli.scanner import Scanner as SQLiScanner
 from module.fileio_scanner.client import Client
+from module.fileio_scanner import checks_download, checks_upload
 from module.fileio_scanner.pipeline import resolve_config
 
 
@@ -316,6 +317,78 @@ class ScannerIntegrationTest(unittest.TestCase):
         self.assertEqual(client.s.cookies.get("session"), "private")
         get.assert_called_once_with("/private", allow_redirects=False)
         client.s.close()
+
+    def test_fileio_keeps_complete_scenario_and_runs_once_per_target(self):
+        config = {
+            "sessions": {},
+            "endpoints": [
+                {"url": "http://127.0.0.1:8080/my-class/board/write/qna", "method": "POST",
+                 "parameters": [{"name": "file", "location": "body"}]},
+                {"url": "http://127.0.0.1:8080/download/{id}", "method": "GET",
+                 "parameters": [{"name": "id", "location": "path"}]},
+            ],
+        }
+        raw = [{
+            "result": "VULNERABLE", "reason": "확증", "url": ARGS["url"],
+            "method": "POST", "parameters": [], "severity": "HIGH",
+        }]
+        options = {"authz_attacker_cookie": "attacker-cookie"}
+        with patch.object(scanner_tools, "_load_config", return_value=config), \
+                patch.object(scanner_tools, "run_fileio_native", return_value=raw) as run:
+            first = scanner_tools.scan_fileio(
+                "http://127.0.0.1:8080/uploads/", "GET", [],
+                "victim-cookie", options,
+            )
+            second = scanner_tools.scan_fileio(
+                "http://127.0.0.1:8080/my-class/board/write/qna", "POST",
+                [{"name": "file", "location": "body"}], "victim-cookie", options,
+            )
+        self.assertEqual(first[0]["vuln"], "VULNERABLE")
+        self.assertEqual(second, [])
+        run.assert_called_once()
+        self.assertEqual(len(run.call_args.args[0]["endpoints"]), 2)
+        self.assertFalse(run.call_args.kwargs["include_skipped"])
+
+    def test_fileio_confirms_retrievable_content_validation_bypass(self):
+        finding = checks_upload._judge(
+            "Extension Bypass - Double Extension", "a.php.png", "HIGH", "test",
+            "http://127.0.0.1/upload", "file", SimpleNamespace(status_code=200),
+            True, "/download/1", "a.php.png", "image/png", False, True, [".png"],
+        )
+        self.assertEqual(finding.result, "VULNERABLE")
+        self.assertIn("동일 내용으로 다운로드", finding.evidence)
+
+    def test_fileio_treats_sanitized_windows_path_as_safe(self):
+        finding = checks_upload._judge(
+            "Path Traversal in Filename", "..\\..\\fio_win.txt", "HIGH", "test",
+            "http://127.0.0.1/upload", "file", SimpleNamespace(status_code=200),
+            True, "/download/1", "....fio_win.txt", "text/plain", False, True, [".txt"],
+        )
+        self.assertEqual(finding.result, "SAFE")
+
+    def test_fileio_confirms_large_predictable_download_enumeration(self):
+        client = SimpleNamespace(
+            login=lambda auth: True,
+            get=lambda path, allow_redirects=False: SimpleNamespace(
+                status_code=200,
+                content=(b"file" if int(path.rsplit("/", 1)[-1]) <= 77 else b""),
+            ),
+            url=lambda path: "http://127.0.0.1:8080" + path,
+        )
+        cfg = {
+            "base_url": "http://127.0.0.1:8080",
+            "download": {"url_template": "/download/{id}", "id_range": [1, 200]},
+            "attacker_auth": {"fields": {"userId": "student2"}},
+        }
+        with patch.object(checks_download, "Client", return_value=client), \
+                patch.object(checks_download, "_collect_ui_visible_ids", return_value=(set(), {
+                    "posts_found": 0, "posts_crawled": 0, "complete": True,
+                })):
+            finding = checks_download.check_enumeration(cfg)[0]
+        self.assertEqual(finding.result, "VULNERABLE")
+        self.assertEqual(finding.category, "Unrestricted File Enumeration (Download)")
+        self.assertEqual(finding.details["scanned_window"], [1, 200])
+        self.assertEqual(finding.details["accessible_count"], 77)
 
     def test_authz_compares_two_runtime_sessions_without_storing_cookies(self):
         def http_response(body, status=200, location=""):
