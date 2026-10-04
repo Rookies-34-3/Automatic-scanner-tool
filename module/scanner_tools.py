@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from copy import deepcopy
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -41,6 +42,9 @@ SQLI_CONTROL_PARAMETER_NAMES = {
     "file", "files", "upload", "attachment", "taskresult",
     "is_secret",
 }
+SQLI_LOOKUP_PARAMETER = re.compile(
+    r"(?i)^(?:q|query|search|keyword|content|term|filter|lookup|id|[a-z0-9]+_id)$"
+)
 
 
 def _origin(url: str) -> str:
@@ -119,6 +123,7 @@ def _sqli_parameters(parameters: Any) -> list[dict[str, str]]:
         if (
             location not in {"query", "form", "body", "json"}
             or name.lower() in SQLI_CONTROL_PARAMETER_NAMES
+            or SQLI_LOOKUP_PARAMETER.fullmatch(name) is None
             or key in seen
         ):
             continue
@@ -149,10 +154,9 @@ def scan_sqli(url: str, method: str, parameters: Any, session_cookie: Any = "", 
             fallback_method=method,
             fallback_parameters=[parameter],
         ))
-    return findings or [review_finding(
-        "sqli", "SQL Injection", url, method, parameters,
-        "CSRF·파일·버튼·경로 ID를 제외하면 점검할 쿼리 또는 본문 필드가 없습니다.",
-    )]
+    # Sink 분류와 별도로 한 번 더 거른다. 검사할 검색·조회 필드가 없으면
+    # 판정 보류 결과를 추가하지 않고 이 도구 호출만 건너뛴다.
+    return findings
 
 
 def scan_reflected_xss(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
@@ -203,7 +207,7 @@ def scan_portscan(url: str, method: str, parameters: Any, session_cookie: Any = 
 
 
 def scan_fileio(url: str, method: str, parameters: Any, session_cookie: Any = "", options: Options = None) -> list[dict]:
-    options = options or {}
+    options = options if options is not None else {}
     native = _load_config(options, "fileio_config", "ROOKIESCAN_FILEIO_CONFIG")
     victim_cookies = cookie_dict(session_cookie)
     attacker_cookies = cookie_dict(options.get("authz_attacker_cookie", ""))

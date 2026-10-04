@@ -25,6 +25,8 @@ ID_PATTERN = re.compile(r"^(?:\d+|[\da-fA-F]{8}(?:-[\da-fA-F]{4}){3}-[\da-fA-F]{
 CONTROL_PATTERN = re.compile(r"(?i)(?:csrf|token|password|session|cookie)")
 FLAG_PATTERN = re.compile(r"(?i)^(?:secret|private|visibility|owner|public)$")
 URL_PATTERN = re.compile(r"(?i)^(?:url|uri|link|callback|webhook|redirect|image|thumbnail)$")
+PAGINATION_PATTERN = re.compile(r"(?i)^(?:page|page_size|pagesize|per_page|perpage|limit|offset|cursor)$")
+SQLI_LOOKUP_PATTERN = re.compile(r"(?i)^(?:q|query|search|keyword|content|term|filter|lookup|id|[a-z0-9]+_id)$")
 OBJECT_PATTERN = re.compile(r"(?i)(?:user|profile|information|contact|inquiry|post|board|file|attachment|document)")
 UNSAFE_PATTERN = re.compile(r"(?i)(?:^|[/_=-])(?:logout|signout|delete|remove|destroy|revoke|reset|unsubscribe)(?:$|[/_?&=-])")
 STATIC_PATTERN = re.compile(r"(?i)\.(?:css|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|pdf|zip|mp[34]|php|py|cgi)$")
@@ -120,8 +122,11 @@ def _normal_url(base, value, origin):
 
 def _parameters(url):
     # URL의 쿼리스트링과 경로 ID에서 엔드포인트 파라미터 정보를 추출
-    parameters = [{"name": name, "location": "query", "input_type": "text"}
-                  for name, _ in dict(parse_qsl(urlsplit(url).query, keep_blank_values=True)).items()]
+    parameters = [
+        {"name": name, "location": "query", "input_type": "text", "required": False}
+        for name, _ in dict(parse_qsl(urlsplit(url).query, keep_blank_values=True)).items()
+        if not PAGINATION_PATTERN.fullmatch(name)
+    ]
     for part in urlsplit(url).path.split("/"):
         if ID_PATTERN.fullmatch(part):
             parameters.append({"name": f"path_id_{len([p for p in parameters if p['location'] == 'path']) + 1}",
@@ -132,6 +137,18 @@ def _parameters(url):
 def _endpoint_template(url):
     # 숫자나 UUID 형태의 경로 값을 {id}로 바꿔 엔드포인트 템플릿을 생성
     return "/".join("{id}" if ID_PATTERN.fullmatch(part) else part for part in urlsplit(url).path.split("/"))
+
+
+def _is_sqli_candidate(endpoint, parameter):
+    """검색·조회에 쓰이는 입력만 SQLi 능동 검사 후보로 등록한다."""
+    name = parameter["name"]
+    return (
+        endpoint["method"].upper() in {"GET", "POST"}
+        and parameter["location"] in {"query", "form", "body"}
+        and parameter["input_type"] in {"text", "search", "textarea", "select"}
+        and not URL_PATTERN.fullmatch(name)
+        and SQLI_LOOKUP_PATTERN.fullmatch(name) is not None
+    )
 
 
 def _classify(endpoint):
@@ -153,14 +170,16 @@ def _classify(endpoint):
             continue
         if parameter.get("role") == "control":
             continue
-        if kind == "file":
+        if kind == "file" and endpoint["method"].upper() in {"POST", "PUT", "PATCH"}:
             candidates.append({"type": "file_upload", "parameter": name, "tools": ["fileio"],
                                "reason": "파일 입력 필드"})
             for check in ("file_extension_bypass", "upload_path_traversal", "upload_code_execution"):
                 candidates.append({"type": check, "parameter": name, "filename_parameter": "filename",
                                    "tools": ["fileio"], "reason": "파일 입력을 발견해 파일명·업로드 처리 검사 대상으로 등록"})
         elif kind in {"text", "search", "textarea", "email", "tel", "url"}:
-            checks = [("reflected_xss", "xss")] if path.rstrip("/") == "/login" else [("sqli", "sqli"), ("reflected_xss", "xss")]
+            checks = [("reflected_xss", "xss")]
+            if path.rstrip("/") != "/login" and _is_sqli_candidate(endpoint, parameter):
+                checks.insert(0, ("sqli", "sqli"))
             for check, tool in checks:
                 candidates.append({"type": check, "parameter": name, "tools": [tool],
                                    "reason": "사용자가 입력할 수 있는 문자열"})
@@ -168,7 +187,9 @@ def _classify(endpoint):
             actions = [p["value"] for p in endpoint["parameters"] if p["name"] == "action" and "value" in p]
             candidates.append({"type": "ssrf", "parameter": name, "tools": ["ssrf"],
                                "actions": actions, "reason": "URL 입력 형식 또는 URL 관련 파라미터 이름"})
-    if "multipart/form-data" in endpoint.get("enctype", "") and not any(c["type"] == "file_upload" for c in candidates):
+    if (endpoint["method"].upper() in {"POST", "PUT", "PATCH"}
+            and "multipart/form-data" in endpoint.get("enctype", "")
+            and not any(c["type"] == "file_upload" for c in candidates)):
         candidates.append({"type": "file_upload", "tools": ["fileio"], "reason": "multipart form"})
     if path.rstrip("/") == "/admin":
         candidates.append({"type": "missing_admin_auth", "tools": ["admin_exposure", "authn"],
@@ -179,12 +200,9 @@ def _classify(endpoint):
     if path == "/":
         candidates.append({"type": "network_exposure", "tools": ["portscan"],
                            "reason": "대상 호스트의 허용 포트 기준 점검 후보"})
-    if path.startswith("/uploads/"):
-        candidates.append({"type": "public_file_access", "tools": ["fileio", "authz"],
+    if path.startswith("/uploads/") and not path.endswith("/"):
+        candidates.append({"type": "public_file_access", "tools": ["authz"],
                            "reason": "업로드 경로 후보. 공개 접근 여부는 미검증"})
-        if re.search(r"(?i)\.(?:php|py|cgi)$", path):
-            candidates.append({"type": "upload_code_execution", "tools": ["fileio"],
-                               "reason": "실행 확장자의 업로드 파일 링크를 발견함. 파일 실행은 미검증"})
     for candidate in candidates:
         candidate["verified"] = False
     endpoint["sink_candidates"] = candidates
@@ -281,6 +299,7 @@ def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] 
     opener = build_opener(ProxyHandler({}), HTTPCookieProcessor(jar), _NoRedirect())
     origin = (target.scheme, target.hostname, target.port or (443 if target.scheme == "https" else 80))
     root = urlunsplit((target.scheme, target.netloc, "/", "", ""))
+    login_url = _normal_url(root, "/login", origin)
     initial = _normal_url(root, target_url.strip(), origin)
     if not initial:
         raise ValueError("탐색할 수 없는 시작 URL입니다.")
@@ -344,7 +363,9 @@ def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] 
             if method == "GET" and depth < MAX_DEPTH and not (urlsplit(url).path.startswith("/uploads/") and not urlsplit(url).path.endswith("/")):
                 queue.append((url, depth + 1))
 
-    for starts, source in (([root, initial], "crawler"), (words, "wordlist")):
+    # 보호된 화면은 로그인 세션으로 순회하되, 로그인 폼은 세션이 있으면
+    # 숨겨질 수 있으므로 정확한 /login 경로를 익명 요청으로 한 번 수집한다.
+    for starts, source in (([root, initial, login_url], "crawler"), (words, "wordlist")):
         queue = deque((url, 0) for url in starts)
         while queue:
             url, depth = queue.popleft()
@@ -360,20 +381,20 @@ def find_sinks(target_url: str, session_cookie: str = "", seed_paths: list[str] 
                 continue
             template_visits[template] = template_visits.get(template, 0) + 1
             visited.add(url)
-            endpoint = record(url, source="wordlist" if url in words else "crawler", crawl_state="visited")
+            anonymous_login = urlsplit(url).path.rstrip("/") == "/login"
+            endpoint_source = "anonymous_login" if anonymous_login else ("wordlist" if url in words else "crawler")
+            endpoint = record(url, source=endpoint_source, crawl_state="visited")
             try:
-                status, headers, body = fetch(url)
+                status, headers, body = fetch(url, authenticated=not anonymous_login)
             except (URLError, OSError, ValueError) as exc:
                 endpoint["error"] = str(exc) if str(exc) in {"response_too_large", "file_download_skipped"} else "request_failed"
                 continue
             endpoint["status_code"] = status
-            if urlsplit(url).path.rstrip("/") == "/login" and status in {301, 302, 303, 307, 308}:
-                # 로그인 상태에서 숨겨지는 로그인 폼만 별도의 공개 GET으로 읽는다.
-                try:
-                    status, headers, body = fetch(url, authenticated=False)
-                    endpoint.update(status_code=status, auth_context="anonymous")
-                except (URLError, OSError, ValueError):
-                    endpoint["error"] = "login_form_unavailable"
+            if anonymous_login:
+                endpoint["auth_context"] = "anonymous"
+                # /login을 사용하지 않는 사이트에는 추측 경로를 결과로 남기지 않는다.
+                if status in {404, 410}:
+                    records.pop((url, "GET"), None)
                     continue
             if status == 401:
                 raise ValueError("session_expired: 로그인 세션을 확인하세요.")

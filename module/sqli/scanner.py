@@ -62,6 +62,22 @@ class Scanner:
             # 예외 원문에는 URL 등이 포함되므로 오류 종류만 결과에 남긴다.
             raise ScanError(f"네트워크 요청 실패: {type(exc).__name__}") from exc
 
+    def follow_post_redirect(self, response, limit=3):
+        """정상 POST 뒤의 동일 출처 301/302/303을 GET으로 따라간다."""
+        for _ in range(limit):
+            if response.status_code not in {301, 302, 303}:
+                return response
+            location = response.headers.get("Location")
+            if not location:
+                raise ScanError(f"POST 리다이렉트 위치가 없습니다 (HTTP {response.status_code})")
+            redirect_url = urljoin(response.url, location)
+            if urlsplit(redirect_url)[:2] != urlsplit(self.base)[:2]:
+                raise ScanError("POST 리다이렉트가 검사 대상 밖을 가리킵니다.")
+            response = self.request("GET", redirect_url)
+        if response.status_code in {301, 302, 303}:
+            raise ScanError("POST 리다이렉트가 너무 많이 반복됩니다.")
+        return response
+
     def login(self, password):
         page = self.request("GET", self.config["login_path"])
         token = soup(page).select_one('input[name="csrf_token"]')
@@ -181,6 +197,8 @@ class Scanner:
                 request_data[target["parameter"]] = payload
             options = {"params": request_data} if method == "GET" else {"data": request_data}
             response = self.request(method, target["path"], **options)
+            if method == "POST":
+                response = self.follow_post_redirect(response)
             finding["status_code"] = response.status_code
             # 정상 요청은 통과하지만 SQLi 문자열만 400/403/422로 거부되는 경우에는
             # 입력 검증이 동작한 증거로 사용하기 위해 응답을 호출부에 돌려준다.

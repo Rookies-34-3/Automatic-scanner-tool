@@ -225,30 +225,52 @@ def check_traversal(cfg) -> list[Finding]:
     c = Client(cfg["base_url"], verify_tls=cfg.get("verify_tls", True))
     c.login(cfg.get("auth"))
     key = "payload" if "{payload}" in tpl else "id"
-    findings = []
+    attempts = []
+    hits = []
+    errors = []
     for p in TRAVERSAL:
         path = tpl.replace("{payload}", quote(p, safe="%")).replace("{id}", quote(p, safe="%"))
         try:
             r = c.get(path, allow_redirects=False)
         except Exception as e:
-            findings.append(Finding(category="Path Traversal (Download)",
-                                    target_url=c.url(tpl), method="GET",
-                                    parameter=key, payload=p, result="ERROR",
-                                    severity=SEV_INFO, evidence=f"오류: {e}"))
+            errors.append({"payload": p, "error": type(e).__name__})
             continue
         hit = any(s in r.content for s in TRAVERSAL_SIGNS)
-        f = Finding(category="Path Traversal / LFI (Download)", target_url=c.url(path),
-                    method="GET", parameter=key, payload=p,
-                    status_code=r.status_code,
-                    details={"body_snippet": r.text[:120]})
+        attempt = {
+            "payload": p,
+            "status_code": r.status_code,
+            "system_file_exposed": hit,
+            "body_snippet": r.text[:120] if hit else "",
+        }
+        attempts.append(attempt)
         if hit:
-            f.result, f.severity = VULNERABLE, CRITICAL
-            f.evidence = "경로순회로 서버 시스템 파일 내용 노출됨"
-        else:
-            f.result, f.severity = SAFE, SEV_INFO
-            f.evidence = f"시스템 파일 노출 없음(status={r.status_code})"
-        findings.append(f)
-    return findings
+            hits.append(attempt)
+
+    finding = Finding(
+        category="Path Traversal / LFI (Download)",
+        target_url=c.url(tpl),
+        method="GET",
+        parameter=key,
+        payload=f"{len(TRAVERSAL)}개 경로 페이로드",
+        details={"attempts": attempts, "errors": errors},
+    )
+    if hits:
+        finding.result, finding.severity = VULNERABLE, CRITICAL
+        finding.status_code = hits[0]["status_code"]
+        finding.evidence = f"경로순회 페이로드 {len(hits)}개에서 서버 시스템 파일 내용이 노출됨"
+    elif errors and not attempts:
+        finding.result, finding.severity = "ERROR", SEV_INFO
+        finding.evidence = f"경로순회 요청 {len(errors)}개가 모두 실행 오류로 끝남"
+    elif errors:
+        finding.result, finding.severity = POTENTIAL, LOW
+        finding.evidence = (
+            f"완료한 {len(attempts)}개 요청에서는 시스템 파일 노출이 없었으나 "
+            f"{len(errors)}개 요청은 실행하지 못함"
+        )
+    else:
+        finding.result, finding.severity = SAFE, SEV_INFO
+        finding.evidence = f"경로순회 페이로드 {len(attempts)}개에서 시스템 파일 노출이 확인되지 않음"
+    return [finding]
 
 
 def _id_pattern(tpl):

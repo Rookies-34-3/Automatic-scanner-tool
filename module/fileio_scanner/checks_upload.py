@@ -9,6 +9,9 @@ from .finding import (Finding, VULNERABLE, POTENTIAL, SAFE, INFO,
                       CRITICAL, HIGH, MEDIUM, LOW, SEV_INFO, skipped)
 
 MARK = b"FIOSCANMARKER"
+CONTROL_FILENAME = "rookiescan-control.txt"
+CONTROL_CONTENT = MARK + b"-CONTROL"
+CONTROL_FIELDS = {"title": "rookiescan-control", "body": "rookiescan-control"}
 
 # 업로드 페이로드 매트릭스
 # (category, filename, content, content_type, severity_if_accepted, note)
@@ -67,12 +70,114 @@ def _fetch_back(client: Client, cfg, resp):
     return links[0], d
 
 
+def _control_upload(client: Client, cfg):
+    """허용 파일의 정상 업로드가 성공하는지 먼저 확인한다."""
+    ups = cfg["upload"]
+    field = ups.get("file_field", "file")
+    target = client.url(ups["path"])
+    try:
+        response = client.upload(
+            ups,
+            CONTROL_FILENAME,
+            CONTROL_CONTENT,
+            "text/plain",
+            extra_overrides=CONTROL_FIELDS,
+        )
+    except Exception as exc:
+        finding = Finding(
+            category="Upload Control Request",
+            target_url=target,
+            method="POST",
+            parameter=field,
+            payload=CONTROL_FILENAME,
+            result="ERROR",
+            severity=SEV_INFO,
+            evidence=f"정상 허용 파일 업로드 요청 실패: {type(exc).__name__}",
+        )
+        return None, finding
+
+    accepted = _accepted(cfg, response)
+    download_path, served = _fetch_back(client, cfg, response)
+    retrievable = bool(
+        served is not None
+        and served.status_code == 200
+        and CONTROL_CONTENT in served.content
+    )
+    details = {
+        "filename": CONTROL_FILENAME,
+        "status_code": response.status_code,
+        "final_url": response.url,
+        "accepted": accepted,
+        "download_path": download_path,
+        "content_retrievable": retrievable,
+    }
+    if accepted:
+        return details, None
+
+    rejection = _reject_reason(response)
+    details["rejection"] = rejection
+    finding = Finding(
+        category="Upload Control Request",
+        target_url=target,
+        method="POST",
+        parameter=field,
+        payload=CONTROL_FILENAME,
+        status_code=response.status_code,
+        result=POTENTIAL,
+        severity=SEV_INFO,
+        evidence=(
+            "정상 허용 파일 업로드가 성공하지 않아 위험 파일의 거부 응답을 "
+            f"안전으로 판정할 수 없습니다. (HTTP {response.status_code})"
+        ),
+        details=details,
+    )
+    return details, finding
+
+
+def _collapse_rejected_payloads(findings, target, field, control):
+    """정상 기준 요청 뒤 거부된 공격 파일을 한 개의 PASS로 묶는다."""
+    rejected = [
+        finding for finding in findings
+        if finding.result == SAFE and finding.details.get("accepted") is False
+    ]
+    if len(rejected) < 2:
+        return findings
+    checks = [{
+        "category": finding.category,
+        "filename": finding.payload,
+        "status_code": finding.status_code,
+        "evidence": finding.evidence,
+        "rejection": finding.details.get("rejection"),
+    } for finding in rejected]
+    summary = Finding(
+        category="Rejected Upload Payloads",
+        target_url=target,
+        method="POST",
+        parameter=field,
+        result=SAFE,
+        severity=SEV_INFO,
+        evidence=(
+            f"정상 허용 파일 업로드 성공 후 위험 파일 {len(rejected)}종이 서버에서 거부됨"
+        ),
+        details={
+            "control_upload": control,
+            "rejected_count": len(rejected),
+            "checks": checks,
+        },
+    )
+    return [finding for finding in findings if finding not in rejected] + [summary]
+
+
 def check_payloads(client: Client, cfg) -> list[Finding]:
     ups = cfg["upload"]
     file_field = ups.get("file_field", "file")
     target = client.url(ups["path"])
     allowed = [e.lower() for e in ups.get("allowed_extensions", [])]
     findings = []
+
+    control, control_failure = _control_upload(client, cfg)
+    if control_failure:
+        return [control_failure]
 
     for category, fname, content, ctype, sev, note in PAYLOADS:
         payload_content = content.replace(b"FIO", MARK)
@@ -84,7 +189,8 @@ def check_payloads(client: Client, cfg) -> list[Finding]:
             findings.append(Finding(category=category, target_url=target,
                                     parameter=file_field, payload=fname,
                                     result="ERROR", severity=SEV_INFO,
-                                    evidence=f"요청 오류: {e}"))
+                                    evidence=f"요청 오류: {e}",
+                                    details={"control_upload": control}))
             continue
 
         accepted = _accepted(cfg, resp)
@@ -102,8 +208,9 @@ def check_payloads(client: Client, cfg) -> list[Finding]:
         f = _judge(category, fname, sev, note, target, file_field, resp,
                    accepted, dl_path, stored_name, served_ct, inline,
                    retrievable, allowed)
+        f.details["control_upload"] = control
         findings.append(f)
-    return findings
+    return _collapse_rejected_payloads(findings, target, file_field, control)
 
 
 # 거부 메시지 후보 키워드(한/영)

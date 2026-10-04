@@ -134,14 +134,18 @@ def to_common(finding: dict) -> dict:
     for k in ("scan_id", "payload", "status_code"):
         if finding.get(k) is not None:
             details.setdefault(k, finding.get(k))
+    verdict = RESULT_MAP.get(finding.get("result", ""), "REVIEW")
+    severity = str(finding.get("severity", "NONE"))
+    if verdict == "PASS":
+        severity = "NONE"
     return {
         "scanner_id": SCANNER_ID,
         "name": finding.get("category", "fileio finding"),
         "url": finding.get("target_url", ""),
         "method": str(finding.get("method", "GET")).upper(),
         "parameters": parameters,
-        "result": RESULT_MAP.get(finding.get("result", ""), "REVIEW"),
-        "severity": str(finding.get("severity", "NONE")),
+        "result": verdict,
+        "severity": severity,
         "reason": finding.get("evidence", "판정 근거 없음"),
         "details": details,
     }

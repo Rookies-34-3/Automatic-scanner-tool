@@ -19,6 +19,8 @@
 기존의 상세(verbose) 설정도 그대로 호환된다(이미 채워진 값은 건드리지 않음).
 """
 import re
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup
 from .client import Client
 
 # ---------- 코드가 정하는 기본값(defaults) ----------
@@ -31,29 +33,43 @@ PROBE_BODY = b"RECONPROBE"
 
 
 # ---------- HTML 폼 파서 ----------
-def _attr(tag, name):
-    m = re.search(r'%s="([^"]*)"' % name, tag, re.I)
-    return m.group(1) if m else ""
-
-
 def parse_forms(html):
     """HTML 내 모든 <form> 을 구조화해 반환."""
     forms = []
-    for block in re.findall(r"<form\b[^>]*>.*?</form>", html, re.S | re.I):
-        head = re.search(r"<form\b[^>]*>", block, re.I).group(0)
+    for form in BeautifulSoup(html, "html.parser").select("form"):
         inputs = []
-        for tag in re.findall(r"<(?:input|textarea|select)\b[^>]*>", block, re.I):
+        for field in form.select("input, textarea, select, button"):
+            if field.name == "input":
+                kind = field.get("type", "text").lower()
+                value = field.get("value", "")
+            elif field.name == "textarea":
+                kind = "textarea"
+                value = field.get_text()
+            elif field.name == "select":
+                kind = "select"
+                options = field.select("option:not([disabled])")
+                selected = next((option for option in options if option.has_attr("selected")), None)
+                selected = selected or next(
+                    (option for option in options if option.get("value", option.get_text(strip=True))),
+                    options[0] if options else None,
+                )
+                value = selected.get("value", selected.get_text(strip=True)) if selected else ""
+            else:
+                kind = field.get("type", "submit").lower()
+                value = field.get("value", "")
             inputs.append({
-                "name": _attr(tag, "name"),
-                "type": (_attr(tag, "type") or
-                         ("textarea" if tag.lower().startswith("<textarea") else "text")).lower(),
-                "value": _attr(tag, "value"),
-                "accept": _attr(tag, "accept"),
+                "name": field.get("name", ""),
+                "type": kind,
+                "value": value,
+                "accept": field.get("accept", ""),
+                "checked": field.has_attr("checked"),
+                "required": field.has_attr("required"),
+                "disabled": field.has_attr("disabled"),
             })
         forms.append({
-            "action": _attr(head, "action"),
-            "method": (_attr(head, "method") or "get").lower(),
-            "enctype": _attr(head, "enctype").lower(),
+            "action": form.get("action", ""),
+            "method": form.get("method", "get").lower(),
+            "enctype": form.get("enctype", "").lower(),
             "inputs": inputs,
         })
     return forms
@@ -84,15 +100,40 @@ def detect_upload(client, upload_path):
                    if i["type"] == "file" and i["accept"]), "")
     exts = [e.strip().lower() for e in accept.split(",") if e.strip().startswith(".")]
     csrf = _find_csrf(up_form["inputs"])
-    # 파일/히든/버튼 외의 입력은 '필수 텍스트 필드'로 보고 더미값 채움
+    # 공격 파일 외의 모든 정상 폼 필드를 채워 CSRF나 필수값 누락으로 인한
+    # HTTP 400을 파일 차단으로 오인하지 않게 한다.
     extra = {}
+    submit_added = False
+    safe_values = {
+        "email": "rookiescan@example.com",
+        "tel": "010-0000-0000",
+        "url": "https://example.com/",
+        "number": "1",
+    }
     for i in up_form["inputs"]:
-        if i["name"] and i["type"] in ("text", "textarea", "email", "search") \
-                and i["name"] != csrf:
-            extra[i["name"]] = "scan"
+        name, kind = i["name"], i["type"]
+        if not name or name == csrf or i.get("disabled") or kind in {
+            "file", "reset", "image",
+        }:
+            continue
+        if kind in {"submit", "button"}:
+            if not submit_added and i["value"]:
+                extra[name] = i["value"]
+                submit_added = True
+            continue
+        if kind in {"checkbox", "radio"}:
+            if i.get("checked") or i.get("required"):
+                extra.setdefault(name, i["value"] or "on")
+            continue
+        if kind == "hidden":
+            if i["value"]:
+                extra[name] = i["value"]
+            continue
+        extra[name] = i["value"] or safe_values.get(kind, "rookiescan")
+    action = urljoin(client.url(upload_path), up_form["action"] or upload_path)
     return {"file_field": file_field, "csrf_field": csrf,
             "allowed_extensions": exts or DEFAULT_EXTS, "extra_fields": extra,
-            "action": up_form["action"] or upload_path}
+            "action": action}
 
 
 # ---------- 다운로드 링크 패턴 자동 탐지 ----------
@@ -153,7 +194,7 @@ def normalize(cfg):
         sess.login(cfg.get("auth"))
         det = detect_upload(sess, up_path)
         up = cfg.setdefault("upload", {})
-        up.setdefault("path", up_path)
+        up.setdefault("path", det.get("action") or up_path)
         up.setdefault("method", "POST")
         up.setdefault("file_field", det.get("file_field", "file"))
         up.setdefault("csrf_field", det.get("csrf_field", "csrf_token"))
