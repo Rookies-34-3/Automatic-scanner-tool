@@ -23,6 +23,7 @@ SENSITIVE_KEYS = {
 
 ALLOWED_SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "NONE", "UNKNOWN"}
 ALLOWED_CONFIDENCE = {"high", "medium", "low"}
+ANALYSIS_VERSION = "2"
 
 
 class VulnerabilityResultAnalyzer:
@@ -136,6 +137,18 @@ class VulnerabilityResultAnalyzer:
             if severity_counts.get(severity, 0) > 0:
                 return severity
         return "INFO"
+
+    @staticmethod
+    def _assessment_intro(target_url: str, statistics: dict[str, Any]) -> str:
+        total = statistics["verified_vulnerable_count"]
+        severities = statistics.get("severity_counts", {})
+        high_risk = severities.get("HIGH", 0) + severities.get("CRITICAL", 0)
+        return (
+            f"본 모의해킹은 대상 웹 시스템({target_url or '대상 주소 미제공'})을 대상으로 "
+            "ROOKIESCAN 프로그램에 의해 수행되었습니다. "
+            f"진단 결과, 총 {total}건의 취약점이 발견되었으며, "
+            f"이 중 고위험(High-Risk, HIGH 및 CRITICAL 등급) 취약점은 {high_risk}건 확인되었습니다."
+        )
 
     @staticmethod
     def _extract_verified_findings(scan_result: dict[str, Any]) -> list[dict[str, Any]]:
@@ -273,6 +286,7 @@ class VulnerabilityResultAnalyzer:
         payload = {
             "target_url": target_url,
             "overall_risk": overall_risk,
+            "assessment_intro": self._assessment_intro(target_url, statistics),
             "statistics": statistics,
             "verified_findings": self._sanitize(findings),
             "scenario_candidates": scenario_candidates,
@@ -298,13 +312,15 @@ class VulnerabilityResultAnalyzer:
 12. 근거가 부족한 내용은 '추가 검증 필요'라고 명시한다.
 13. 설명은 한국어로 작성하고 필요한 보안 용어는 영어 원어를 함께 사용한다.
 14. Markdown을 사용하지 말고 유효한 JSON 객체 하나만 반환한다.
+15. HIGH/CRITICAL은 심각도 분류이며, 그 등급만으로 시스템 장악이나 원격 코드 실행(RCE)이 가능하다고 쓰지 않는다. 입력 증거가 이를 직접 뒷받침할 때만 가능성과 확인 사실을 구분하여 설명한다.
+16. 총평은 전문적인 모의해킹 보고서 문체로 작성한다. assessment_intro는 Python이 총평 앞에 붙일 확정 도입부이므로 overall_assessment 안에 반복하지 않는다.
 """
 
         schema_prompt = """
 아래 구조를 정확히 지켜 JSON을 반환하라.
 
 {
-  "overall_assessment": "전체 진단 결과에 대한 총평. 주요 보안 문제, 전체적인 위험 성격, 우선 개선 영역을 3~6문장으로 설명",
+  "overall_assessment": "도입부에 이어지는 총평 본문. 총 진단 결과 요약, 주요 보안 위협 분석, 개선 및 조치 의견을 이 순서로 3개 문단, 총 6~9문장으로 작성. 문단은 JSON 문자열의 줄바꿈으로 구분하며 제목 없이 자연스럽게 연결",
   "key_findings": [
     {
       "finding_id": "F001",
@@ -333,12 +349,6 @@ class VulnerabilityResultAnalyzer:
       "reason": "우선 처리 이유",
       "related_finding_ids": ["F001"]
     }
-  ],
-  "vulnerability_analysis": {
-    "scanner_id": "해당 scanner_id 유형의 취약점들을 종합 분석한 설명"
-  },
-  "general_recommendations": [
-    "전체 시스템 관점의 권장 조치"
   ]
 }
 
@@ -349,7 +359,11 @@ class VulnerabilityResultAnalyzer:
 - attack_scenarios는 반드시 scenario_candidates의 candidate_id 하나를 candidate_ref로 지정한다.
 - evidence_refs는 해당 candidate_ref의 finding_ids 안에서만 선택한다.
 - 서로 다른 Endpoint 그룹을 임의로 연계하지 않는다.
-- 공격 시나리오의 근거가 약하거나 단순 추측에 불과하면 attack_scenarios에 추가하지 않는다.\n- vulnerability_analysis의 key는 verified_findings에 실제 존재하는 scanner_id만 사용한다.
+- 공격 시나리오의 근거가 약하거나 단순 추측에 불과하면 attack_scenarios에 추가하지 않는다.
+- vulnerability_analysis와 general_recommendations는 출력하지 않는다. 종합 위협 설명과 개선 의견은 overall_assessment에 통합한다.
+- 총평 첫 문단은 statistics의 전체 점검 범위와 VULNERABLE/PASS/REVIEW/ERROR 현황을 요약하되, PASS를 안전 보장으로 설명하거나 REVIEW를 확정 취약점에 포함하지 않는다.
+- 둘째 문단은 verified_findings의 핵심 위협과 예상 영향을 설명한다. 빈 목록이면 확인된 취약점이 없다고 쓰고 검사 한계를 설명한다.
+- 셋째 문단은 확인된 취약점에 맞는 우선 조치, 검토 항목의 수동 확인, 조치 후 재진단 의견을 제시한다.
 """
 
         response = self.client.responses.create(
@@ -544,34 +558,12 @@ class VulnerabilityResultAnalyzer:
             findings,
         )
 
-        vulnerability_analysis = ai_analysis.get("vulnerability_analysis", {})
-        if not isinstance(vulnerability_analysis, dict):
-            vulnerability_analysis = {}
-
-        known_types = sorted(
-            {
-                str(f.get("scanner_id") or f.get("vulnerability_type", "")).strip()
-                for f in findings
-                if str(f.get("scanner_id") or f.get("vulnerability_type", "")).strip()
-            }
-        )
-        normalized_vulnerability_analysis = {
-            vuln_type: str(vulnerability_analysis.get(vuln_type, ""))
-            for vuln_type in known_types
-        }
-
-        recommendations = ai_analysis.get("general_recommendations", [])
-        if not isinstance(recommendations, list):
-            recommendations = []
-
         validated = {
             "overall_risk": overall_risk,
             "overall_assessment": str(ai_analysis.get("overall_assessment", "")),
             "key_findings": key_findings,
             "attack_scenarios": attack_scenarios,
             "priority_actions": priority_actions,
-            "vulnerability_analysis": normalized_vulnerability_analysis,
-            "general_recommendations": [str(item) for item in recommendations],
         }
 
         validation_stats = {
@@ -594,7 +586,9 @@ class VulnerabilityResultAnalyzer:
 
         if output_path.exists() and not force:
             previous = self._load_json(output_path)
-            if previous.get("source_hash") == source_hash:
+            if (previous.get("source_hash") == source_hash
+                    and previous.get("analysis_version") == ANALYSIS_VERSION
+                    and previous.get("model") == self.model):
                 print("동일한 스캔 결과가 이미 분석되어 있어 API를 호출하지 않습니다.")
                 return previous
 
@@ -624,7 +618,12 @@ class VulnerabilityResultAnalyzer:
             overall_risk,
         )
 
+        body = analysis["overall_assessment"].strip()
+        intro = self._assessment_intro(target_url or "", statistics)
+        analysis["overall_assessment"] = intro + ("\n\n" + body if body else "")
+
         output = {
+            "analysis_version": ANALYSIS_VERSION,
             "source_hash": source_hash,
             "source_file": Path(input_path).name,
             "model": self.model,
