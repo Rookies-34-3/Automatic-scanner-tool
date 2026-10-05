@@ -17,7 +17,7 @@ from openai import OpenAI
 APP_DIR = Path(__file__).resolve().parent
 SCANNER_RESULT_FILENAME = "output/scan-results.json"
 ANALYSIS_RESULT_FILENAME = "output/analysis.json"
-REPORT_MODULE_NAME = "report"
+REPORT_MODULE_NAME = "report_writer"
 REPORT_FUNCTION_NAME = "run"
 
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]

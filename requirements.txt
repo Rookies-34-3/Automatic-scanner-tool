@@ -5,3 +5,4 @@ beautifulsoup4
 pandas
 altair
 openai>=2.0.0
+pypdf>=6.0,<7.0
