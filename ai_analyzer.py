@@ -23,7 +23,7 @@ SENSITIVE_KEYS = {
 
 ALLOWED_SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "NONE", "UNKNOWN"}
 ALLOWED_CONFIDENCE = {"high", "medium", "low"}
-ANALYSIS_VERSION = "2"
+ANALYSIS_VERSION = "3"
 
 
 class VulnerabilityResultAnalyzer:
@@ -320,7 +320,7 @@ class VulnerabilityResultAnalyzer:
 아래 구조를 정확히 지켜 JSON을 반환하라.
 
 {
-  "overall_assessment": "도입부에 이어지는 총평 본문. 총 진단 결과 요약, 주요 보안 위협 분석, 개선 및 조치 의견을 이 순서로 3개 문단, 총 6~9문장으로 작성. 문단은 JSON 문자열의 줄바꿈으로 구분하며 제목 없이 자연스럽게 연결",
+  "overall_assessment": "도입부에 이어지는 총평 본문. 총 진단 결과 요약, 주요 보안 위협 분석, 개선 및 조치 의견을 이 순서로 3개 문단, 총 6~9문장으로 작성. 문단은 JSON 문자열에서 빈 줄(\\n\\n)로 구분하며 제목 없이 자연스럽게 연결",
   "key_findings": [
     {
       "finding_id": "F001",

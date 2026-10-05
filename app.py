@@ -1,6 +1,7 @@
 import json
 import importlib
 import os
+import re
 from collections import Counter
 from html import escape
 from pathlib import Path
@@ -252,6 +253,10 @@ def render_overall_assessment(analysis_data: dict) -> None:
     if not assessment:
         return
 
+    # JSON의 문단 구분을 HTML 문단으로 보존한다. 단일 줄바꿈도 문단으로 처리한다.
+    paragraphs = [part.strip() for part in re.split(r"\n+", assessment.replace("\r\n", "\n")) if part.strip()]
+    assessment_html = "".join(f"<p>{escape(part)}</p>" for part in paragraphs)
+
     risk = str(analysis.get("overall_risk") or "미지정").upper()
     risk_class = risk.lower() if risk in SEVERITY_ORDER else "unknown"
     st.html(
@@ -260,8 +265,8 @@ def render_overall_assessment(analysis_data: dict) -> None:
         '<div><h3>종합 위험 평가</h3></div>'
         f'<strong class="assessment-risk {escape(risk_class)}">{escape(risk)}</strong>'
         '</div>'
-        f'<p>{escape(assessment)}</p>'
-        '</section>'
+        + assessment_html
+        + '</section>'
     )
 
 
@@ -783,14 +788,15 @@ def render_review_queue(scan_data: dict) -> None:
         st.success("현재 수동 검토가 필요한 항목이 없습니다.")
         return
 
-    summary_columns = st.columns(3)
-    summary_columns[0].metric("검토 항목", len(reviews), border=True)
-    summary_columns[1].metric(
-        "영향 엔드포인트",
-        reviews[["메서드", "위치"]].drop_duplicates().shape[0],
-        border=True,
+    endpoint_count = reviews[["메서드", "위치"]].drop_duplicates().shape[0]
+    scanner_count = reviews["스캐너"].nunique()
+    st.html(
+        '<div class="scenario-summary">'
+        f'<div><span>검토 항목</span><strong>{len(reviews)}</strong><small>건</small></div>'
+        f'<div><span>영향 엔드포인트</span><strong>{endpoint_count}</strong><small>개</small></div>'
+        f'<div><span>관련 스캐너</span><strong>{scanner_count}</strong><small>개</small></div>'
+        '</div>'
     )
-    summary_columns[2].metric("관련 스캐너", reviews["스캐너"].nunique(), border=True)
 
     scanner_counts = reviews["스캐너"].value_counts().to_dict()
     scanner_summary = " · ".join(f"{scanner} {count}건" for scanner, count in scanner_counts.items())
@@ -1197,34 +1203,16 @@ def main() -> None:
         page_title="ROOKIESCAN",
         page_icon=":material/security:",
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="collapsed",
     )
     render_top_bar()
     st.html(Path(__file__).with_name("dashboard.css"))
 
-    with st.sidebar:
-        st.html(
-            '<div class="sidebar-heading">스캔 데이터</div>'
-            '<p class="sidebar-description">JSON 결과를 불러와 보안 현황과 보고서를 확인하세요.</p>'
-        )
-        st.html('<div class="sidebar-section-label">DATA SOURCE</div>')
-        uploaded_file = st.file_uploader("통합 결과 JSON", type=["json"], label_visibility="collapsed")
-        uploaded_analysis_file = st.file_uploader(
-            "분석 결과 JSON",
-            type=["json"],
-            help="업로드하지 않으면 상단의 ANALYSIS_RESULT_FILENAME에 지정된 파일을 사용합니다.",
-        )
-        with st.expander("AI 분석 설정", icon=":material/tune:"):
-            model = st.text_input("OpenAI model", value=os.getenv("OPENAI_MODEL", "gpt-6-luna"))
-            st.caption("현재 더미 모드에서는 API 키와 모델 설정을 사용하지 않습니다.")
-
     try:
-        # 업로드 파일이 있으면 우선 사용하고, 없으면 상단에 지정된 파일을 자동으로 읽습니다.
+        # 통합 검사 결과를 자동으로 읽고, 단독 실행 시 기본 파일을 사용한다.
         result_path = st.session_state.get("scan_report_path") or SCANNER_RESULT_FILENAME
-        scan_data = load_scan_result(uploaded_file) if uploaded_file else load_configured_json(result_path)
-        if uploaded_analysis_file:
-            analysis_data = load_scan_result(uploaded_analysis_file)
-        elif "analysis_report_path" in st.session_state:
+        scan_data = load_configured_json(result_path)
+        if "analysis_report_path" in st.session_state:
             # 이번 검사의 추가 분석이 실패하면 이전 파일을 대신 표시하지 않는다.
             analysis_path = st.session_state["analysis_report_path"]
             analysis_data = load_configured_json(analysis_path, required=False) if analysis_path else {}
@@ -1236,16 +1224,6 @@ def main() -> None:
         st.error(f"JSON 처리 오류: {exc}")
         return
 
-    with st.sidebar:
-        source_name = uploaded_file.name if uploaded_file is not None else str(result_path)
-        target_name = scan_data.get("target") or scan_data.get("target_url") or "대상 미제공"
-        st.html(
-            '<div class="sidebar-source-card">'
-            '<div class="sidebar-source-icon">✓</div>'
-            '<div><strong>데이터 준비 완료</strong>'
-            f'<span>{escape(source_name)}</span><small>{escape(str(target_name))}</small></div>'
-            '</div>'
-        )
     heading_column, action_column = st.columns([4, 1], vertical_alignment="center")
     with heading_column:
         st.html('<div class="page-eyebrow">SECURITY OVERVIEW</div><div class="page-heading">취약점 진단 결과</div>')

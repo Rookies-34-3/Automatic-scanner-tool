@@ -349,7 +349,7 @@ class StreamlitFlowTest(unittest.TestCase):
             self.assertFalse(app.exception)
             self.assertTrue(Path(app.session_state["scan_report_path"]).exists())
             self.assertIsNone(app.session_state["analysis_report_path"])
-            self.assertNotIn("private-error", app.warning[0].value)
+            self.assertFalse(app.warning)
             self.analyzer.return_value.analyze_file.side_effect = successful_write
             next(button for button in app.button if button.label == "총평·공격 시나리오 다시 시도").click().run()
             scan_analysis.assert_called_once()

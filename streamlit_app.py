@@ -185,7 +185,7 @@ st.set_page_config(
     page_title="ROOKIESCAN",
     page_icon=":material/security:",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 st.html(Path(__file__).with_name("dashboard.css"))
 
@@ -193,19 +193,9 @@ st.html(Path(__file__).with_name("dashboard.css"))
 if "analysis_result" in st.session_state and "tool_results" not in st.session_state["analysis_result"]:
     st.session_state.pop("analysis_result")
 
-# 완료 화면은 app.py가 상단바와 사이드바를 직접 표시한다.
+# 완료 화면은 app.py가 상단바를 직접 표시한다.
 if not (st.session_state.get("show_analysis") and "analysis_result" in st.session_state):
     render_top_bar()
-    with st.sidebar:
-        st.html(
-            '<div class="sidebar-heading">보안 점검</div>'
-            '<p class="sidebar-description">대상을 탐색하고 취약점을 분석한 뒤 대시보드에서 결과를 확인하세요.</p>'
-            '<div class="sidebar-section-label">SCAN WORKFLOW</div>'
-        )
-        stage = 3 if st.session_state.get("show_analysis") else 2 if st.session_state.get("show_report") else 1
-        for index, label in enumerate(("대상 설정", "입력 지점 탐색", "취약점 분석"), 1):
-            state = "active" if index == stage else "complete" if index < stage else ""
-            st.html(f'<div class="scan-step {state}"><span>{index:02d}</span>{label}</div>')
 
 # show_report와 show_analysis 값으로 입력·Sink 보고서·대시보드 화면을 전환
 if not st.session_state.get("show_report", False):
@@ -363,17 +353,16 @@ else:
             report = st.session_state["analysis_result"]
             report["analysis_json_path"] = None
             output_path = Path(report["json_path"]).with_name("analysis.json")
-            with st.spinner("AI가 총평과 공격 시나리오를 작성하고 있습니다…"):
-                try:
-                    analyzer = VulnerabilityResultAnalyzer()
-                    analyzer.analyze_file(report["json_path"], output_path)
-                except (ValueError, OSError, OpenAIError) as exc:
-                    st.session_state["additional_analysis_error"] = (
-                        f"총평과 공격 시나리오 생성에 실패했습니다 ({type(exc).__name__}). 검사 결과는 보존되었습니다."
-                    )
-                else:
-                    report["analysis_json_path"] = str(output_path)
-                    st.session_state.pop("additional_analysis_error", None)
+            try:
+                analyzer = VulnerabilityResultAnalyzer()
+                analyzer.analyze_file(report["json_path"], output_path)
+            except (ValueError, OSError, OpenAIError) as exc:
+                st.session_state["additional_analysis_error"] = (
+                    f"총평과 공격 시나리오 생성에 실패했습니다 ({type(exc).__name__}). 검사 결과는 보존되었습니다."
+                )
+            else:
+                report["analysis_json_path"] = str(output_path)
+                st.session_state.pop("additional_analysis_error", None)
         if st.session_state.get("dashboard_pending", False):
             st.session_state.pop("dashboard_pending")
             st.rerun()
@@ -381,13 +370,11 @@ else:
         # app.py에서 이 경로를 읽으면 방금 저장한 최종 JSON을 사용할 수 있다.
         st.session_state["scan_report_path"] = report.get("json_path")
         st.session_state["analysis_report_path"] = report.get("analysis_json_path")
-        if "additional_analysis_error" in st.session_state:
-            st.warning(st.session_state["additional_analysis_error"])
         dashboard_path = Path(__file__).with_name("app.py")
         if dashboard_path.is_file():
             runpy.run_path(str(dashboard_path), run_name="__main__")
         else:
-            st.info("분석이 완료되었습니다. 같은 디렉터리에 app.py를 추가하면 대시보드가 표시됩니다.")
+            st.info("분석이 완료되었습니다.")
 
     # 대시보드에서 돌아가면 저장된 Sink 탐색 보고서를 보여준다.
     with st.container(horizontal=True, horizontal_alignment="distribute"):

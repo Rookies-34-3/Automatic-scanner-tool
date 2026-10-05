@@ -7,9 +7,7 @@ venv/
 env/
 
 # 스캔 결과물(아티팩트) - 실행하면 재생성됨
-output/*.json
-output/*.tmp
-output/*.html
+output/
 
 # API 키 등 비밀 (절대 커밋 금지)
 .env
