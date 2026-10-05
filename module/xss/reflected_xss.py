@@ -10,6 +10,10 @@ import requests
 from bs4 import BeautifulSoup
 
 
+class _FormUnavailable(requests.RequestException):
+    pass
+
+
 class ReflectedXSSScanner:
     def __init__(self, timeout=5):
         self.timeout = timeout
@@ -36,23 +40,64 @@ class ReflectedXSSScanner:
                 _, controls = self._form_parameters(target)
                 candidates = [name for name in candidates if name not in controls]
             except requests.RequestException as exc:
-                return {"url": target["url"], "method": "POST", "parameters": target["parameters"],
-                        "vuln": "ERROR", "result": [{"vulnerable": False, "reason": f"request error: {exc}"}]}
+                return self._result(target, [self._request_error(exc, "입력 폼 준비")])
         results = []
 
         for parameter in candidates:
             results.append(self._scan_parameter(target, parameter))
 
+        return self._result(target, results)
+
+    @staticmethod
+    def _result(target, results):
+        vuln = (True if any(result["vulnerable"] for result in results)
+                else "ERROR" if any(result.get("error") for result in results)
+                else "REVIEW" if not results or any(result.get("inconclusive") for result in results)
+                else False)
+        messages = {}
+        for item in results:
+            names = messages.setdefault(item["reason"], [])
+            if item.get("parameter") and item["parameter"] not in names:
+                names.append(item["parameter"])
+        summary = "\n".join(
+            message + (f" (검사 입력 항목: {', '.join(names)})" if names else "")
+            for message, names in messages.items()
+        ) or "XSS 검사를 수행할 입력 항목이 없어 취약점 여부를 판단하지 못했습니다."
         return {
             "url": target["url"],
             "method": target["method"].upper(),
             "parameters": target["parameters"],
-            "vuln": (True if any(result["vulnerable"] for result in results)
-                     else "ERROR" if any("request error" in result.get("reason", "") for result in results)
-                     else "REVIEW" if not results or any(result.get("inconclusive") for result in results)
-                     else False),
-            "result": results
+            "vuln": vuln,
+            "result": summary,
+            "severity": "HIGH" if vuln is True else "INFO" if vuln in ("REVIEW", "ERROR") else "NONE",
+            "details": {"raw_result": results},
         }
+
+    @staticmethod
+    def _request_error(exc, stage, parameter=None):
+        if isinstance(exc, requests.Timeout):
+            reason = f"{stage} 요청이 제한 시간 안에 완료되지 않아 XSS 여부를 판단하지 못했습니다."
+        elif isinstance(exc, requests.HTTPError) and exc.response is not None:
+            reason = ReflectedXSSScanner._http_rejection(exc.response.status_code)
+        elif isinstance(exc, _FormUnavailable):
+            reason = "검사 대상에 제출할 POST 폼을 찾지 못해 XSS 여부를 판단하지 못했습니다."
+        elif isinstance(exc, requests.ConnectionError):
+            reason = f"{stage} 중 서버에 연결하지 못해 XSS 여부를 판단하지 못했습니다."
+        else:
+            reason = f"{stage} 중 오류가 발생하여 XSS 여부를 판단하지 못했습니다."
+        return {"parameter": parameter, "vulnerable": False, "error": True,
+                "reason": reason, "error_type": type(exc).__name__, "error_detail": str(exc)}
+
+    @staticmethod
+    def _http_rejection(status):
+        explanation = {
+            400: "CSRF 토큰이나 필수 입력값 등 요청 조건을 확인해야 합니다.",
+            401: "로그인 상태를 확인해야 합니다.",
+            403: "접근 권한이나 서버의 차단 정책을 확인해야 합니다.",
+            404: "검사 대상 경로를 확인해야 합니다.",
+            429: "요청 횟수 제한을 확인해야 합니다.",
+        }.get(status, "서버 오류를 확인해야 합니다." if status >= 500 else "서버 응답을 확인해야 합니다.")
+        return f"서버가 XSS 검사 요청에 HTTP {status} 오류를 반환하여 취약점 여부를 판단하지 못했습니다. {explanation}"
 
     def _scan_parameter(self, target, parameter):
         canary = f"XSS_CANARY_{uuid.uuid4().hex[:8]}"
@@ -60,22 +105,19 @@ class ReflectedXSSScanner:
         try:
             response = self._send(target, parameter, canary)
         except requests.RequestException as e:
-            return {
-                "parameter": parameter,
-                "vulnerable": False,
-                "reason": f"request error: {e}"
-            }
+            return self._request_error(e, "입력값 반사 확인", parameter)
 
         if getattr(response, "status_code", 200) >= 400:
             return {"parameter": parameter, "vulnerable": False, "inconclusive": True,
-                    "reason": f"probe rejected: HTTP {response.status_code}"}
+                    "status_code": response.status_code, "stage": "probe",
+                    "reason": self._http_rejection(response.status_code)}
 
         # 1. 입력값 반사 여부 확인
         if canary not in response.text:
             return {
                 "parameter": parameter,
                 "vulnerable": False,
-                "reason": "input value was not reflected in response"
+                "reason": "검사 입력값이 응답에 나타나지 않아 반사형 XSS 증거가 발견되지 않았습니다."
             }
 
         # 2. 반사되는 Context 확인
@@ -87,24 +129,23 @@ class ReflectedXSSScanner:
         try:
             payload_response = self._send(target, parameter, payload)
         except requests.RequestException as e:
-            return {
-                "parameter": parameter,
-                "vulnerable": False,
-                "context": context,
-                "reason": f"payload request error: {e}"
-            }
+            return self._request_error(e, "XSS 코드 검증", parameter) | {"context": context}
 
         if getattr(payload_response, "status_code", 200) >= 400:
             return {"parameter": parameter, "vulnerable": False, "inconclusive": True,
-                    "reason": f"payload rejected: HTTP {payload_response.status_code}"}
+                    "status_code": payload_response.status_code, "stage": "payload",
+                    "reason": self._http_rejection(payload_response.status_code)}
 
         # 4. Payload가 그대로 반사되는지 확인
         if payload in payload_response.text:
+            location = {"HTML_TEXT": "HTML 본문", "HTML_ATTRIBUTE": "HTML 속성",
+                        "JAVASCRIPT": "JavaScript 코드"}.get(context, "응답")
             return {
                 "parameter": parameter,
                 "vulnerable": True,
                 "context": context,
                 "payload": payload,
+                "reason": f"검사용 XSS 코드가 {location}에 인코딩 없이 그대로 포함되었습니다.",
                 "evidence": self._get_evidence(
                     payload_response.text,
                     payload
@@ -119,7 +160,7 @@ class ReflectedXSSScanner:
                 "vulnerable": False,
                 "context": context,
                 "payload": payload,
-                "reason": "payload was HTML-encoded",
+                "reason": "검사용 XSS 코드가 HTML 특수문자 인코딩 처리되어 그대로 출력되지 않았습니다.",
                 "evidence": self._get_evidence(
                     payload_response.text,
                     encoded_payload
@@ -131,7 +172,7 @@ class ReflectedXSSScanner:
             "vulnerable": False,
             "context": context,
             "payload": payload,
-            "reason": "payload was not reflected"
+            "reason": "검사 입력값은 응답에 나타났지만, 검사용 XSS 코드는 그대로 출력되지 않았습니다."
         }
 
     def _form_parameters(self, target):
@@ -143,7 +184,7 @@ class ReflectedXSSScanner:
                      and urlsplit(urljoin(response.url, form.get("action", "")))[:3]
                      == urlsplit(target["url"])[:3]), None)
         if form is None:
-            raise requests.RequestException("matching POST form unavailable; cannot validate submission")
+            raise _FormUnavailable("검사 대상에 제출할 POST 폼을 찾지 못했습니다.")
         values, controls = {}, set()
         for field in form.select("input[name], textarea[name], select[name], button[name]"):
             name = field["name"]
