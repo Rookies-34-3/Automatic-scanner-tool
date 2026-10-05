@@ -181,7 +181,7 @@ def scan_reflected_xss(url: str, method: str, parameters: Any, session_cookie: A
     finally:
         scanner.session.close()
     raw["parameters"] = public_parameters(parameters)
-    if any(
+    if raw.get("vuln") is not True and any(
         "request error" in str(item.get("reason", "")).lower()
         for item in raw.get("result", []) if isinstance(item, dict)
     ):
