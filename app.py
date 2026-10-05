@@ -277,10 +277,10 @@ def render_overview(scan_data: dict, analysis_data: dict) -> None:
          "스캐너가 처리한 총 점검 횟수", "navy"),
         ("취약 판정", source_summary.get("vulnerable", int((checks["판정"] == "VULNERABLE").sum())),
          "응답에서 취약점 증거가 확인됨", "red"),
-        ("양호", source_summary.get("pass", int((checks["판정"] == "PASS").sum())),
+        ("양호 판정", source_summary.get("pass", int((checks["판정"] == "PASS").sum())),
          "공격이 차단되었거나 취약점이 탐지되지 않음", "green"),
         ("검토 필요", source_summary.get("review", int((checks["판정"] == "REVIEW").sum())),
-         "취약 가능성이 있으나 증거가 불충분하여 직접 확인이 필요함", "gray"),
+         "취약 여부 판정에 증거가 불충분하여 직접 확인 필요", "gray"),
     ]
     for column, (label, count, subtitle, color) in zip(st.columns(len(cards)), cards):
         with column:
@@ -1222,11 +1222,14 @@ def main() -> None:
         # 업로드 파일이 있으면 우선 사용하고, 없으면 상단에 지정된 파일을 자동으로 읽습니다.
         result_path = st.session_state.get("scan_report_path") or SCANNER_RESULT_FILENAME
         scan_data = load_scan_result(uploaded_file) if uploaded_file else load_configured_json(result_path)
-        analysis_data = (
-            load_scan_result(uploaded_analysis_file)
-            if uploaded_analysis_file
-            else load_configured_json(ANALYSIS_RESULT_FILENAME, required=False)
-        )
+        if uploaded_analysis_file:
+            analysis_data = load_scan_result(uploaded_analysis_file)
+        elif "analysis_report_path" in st.session_state:
+            # 이번 검사의 추가 분석이 실패하면 이전 파일을 대신 표시하지 않는다.
+            analysis_path = st.session_state["analysis_report_path"]
+            analysis_data = load_configured_json(analysis_path, required=False) if analysis_path else {}
+        else:
+            analysis_data = load_configured_json(ANALYSIS_RESULT_FILENAME, required=False)
         findings_df = flatten_findings(scan_data)
         summary = build_summary(scan_data, findings_df)
     except Exception as exc:

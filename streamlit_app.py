@@ -14,6 +14,7 @@ from openai import OpenAIError
 import sink_finder
 import openai_module
 import report_writer
+from ai_analyzer import VulnerabilityResultAnalyzer
 
 def render_top_bar() -> None:
     """대시보드 전역 브랜드 상단바를 표시합니다."""
@@ -258,6 +259,8 @@ if not st.session_state.get("show_report", False):
             st.session_state.pop("analysis_result", None)
             st.session_state.pop("analysis_error", None)
             st.session_state.pop("analysis_pending", None)
+            st.session_state.pop("additional_analysis_error", None)
+            st.session_state.pop("additional_analysis_pending", None)
             st.session_state["show_analysis"] = False
             st.session_state["show_report"] = True
         st.session_state["sink_scan_pending"] = False
@@ -347,6 +350,7 @@ else:
         else:
             st.session_state["analysis_result"] = report
             st.session_state.pop("analysis_error", None)
+            st.session_state["additional_analysis_pending"] = True
             st.session_state["dashboard_pending"] = True
 
     if "analysis_error" in st.session_state:
@@ -355,12 +359,30 @@ else:
     # 저장된 분석 결과를 재사용하고, 같은 디렉터리에 병합될 대시보드를 실행한다.
     if "analysis_result" in st.session_state:
         analysis_title.empty()
+        if st.session_state.pop("additional_analysis_pending", False):
+            report = st.session_state["analysis_result"]
+            report["analysis_json_path"] = None
+            output_path = Path(report["json_path"]).with_name("analysis.json")
+            with st.spinner("AI가 총평과 공격 시나리오를 작성하고 있습니다…"):
+                try:
+                    analyzer = VulnerabilityResultAnalyzer()
+                    analyzer.analyze_file(report["json_path"], output_path)
+                except (ValueError, OSError, OpenAIError) as exc:
+                    st.session_state["additional_analysis_error"] = (
+                        f"총평과 공격 시나리오 생성에 실패했습니다 ({type(exc).__name__}). 검사 결과는 보존되었습니다."
+                    )
+                else:
+                    report["analysis_json_path"] = str(output_path)
+                    st.session_state.pop("additional_analysis_error", None)
         if st.session_state.get("dashboard_pending", False):
             st.session_state.pop("dashboard_pending")
             st.rerun()
         report = st.session_state["analysis_result"]
         # app.py에서 이 경로를 읽으면 방금 저장한 최종 JSON을 사용할 수 있다.
         st.session_state["scan_report_path"] = report.get("json_path")
+        st.session_state["analysis_report_path"] = report.get("analysis_json_path")
+        if "additional_analysis_error" in st.session_state:
+            st.warning(st.session_state["additional_analysis_error"])
         dashboard_path = Path(__file__).with_name("app.py")
         if dashboard_path.is_file():
             runpy.run_path(str(dashboard_path), run_name="__main__")
@@ -370,5 +392,9 @@ else:
     # 대시보드에서 돌아가면 저장된 Sink 탐색 보고서를 보여준다.
     with st.container(horizontal=True, horizontal_alignment="distribute"):
         st.button("뒤로가기", on_click=show_sink_report_screen)
+        if "additional_analysis_error" in st.session_state and "analysis_result" in st.session_state:
+            if st.button("총평·공격 시나리오 다시 시도"):
+                st.session_state["additional_analysis_pending"] = True
+                st.rerun()
         if "analysis_result" not in st.session_state:
             st.button("다시 시도", on_click=retry_analysis)

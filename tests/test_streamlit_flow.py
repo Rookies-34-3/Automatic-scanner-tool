@@ -14,6 +14,7 @@ from streamlit.testing.v1 import AppTest
 from openai import OpenAIError
 import openai_module
 import report_writer
+import ai_analyzer
 import sink_finder
 
 
@@ -58,6 +59,15 @@ def analysis_report(payload, session_cookie="", scanner_options=None, on_progres
 
 class StreamlitFlowTest(unittest.TestCase):
     def setUp(self):
+        def write_analysis(input_path, output_path):
+            Path(output_path).write_text(json.dumps({"analysis": {
+                "overall_assessment": "테스트 총평",
+                "overall_risk": "INFO", "attack_scenarios": [],
+            }}), encoding="utf-8")
+        analyzer_patch = patch.object(ai_analyzer, "VulnerabilityResultAnalyzer")
+        self.analyzer = analyzer_patch.start()
+        self.analyzer.return_value.analyze_file.side_effect = write_analysis
+        self.addCleanup(analyzer_patch.stop)
         dashboard_patch = patch("runpy.run_path")
         dashboard_patch.start()
         self.addCleanup(dashboard_patch.stop)
@@ -315,12 +325,37 @@ class StreamlitFlowTest(unittest.TestCase):
                 app.run()
                 app.run()
                 analyze.assert_called_once()
+            self.analyzer.return_value.analyze_file.assert_called_once()
+            self.assertTrue(Path(app.session_state["analysis_report_path"]).exists())
             self.assertFalse(app.exception)
             self.assertFalse(app.error)
             self.assertEqual([heading.value for heading in app.subheader], ["테스트 대시보드"])
             self.assertFalse(app.table)
             self.assertFalse(app.dataframe)
             self.assertEqual(app.session_state["scan_report_path"], app.session_state["analysis_result"]["json_path"])
+
+    def test_additional_analysis_failure_preserves_scan_and_retries_only_analyzer(self):
+        app = AppTest.from_file(str(APP))
+        app.session_state["show_report"] = True
+        app.session_state["show_analysis"] = True
+        app.session_state["analysis_pending"] = True
+        app.session_state["scan_target_url"] = "http://127.0.0.1:8080/"
+        app.session_state["openai_sinks"] = {"groups": [{}]}
+        successful_write = self.analyzer.return_value.analyze_file.side_effect
+        self.analyzer.return_value.analyze_file.side_effect = ValueError("private-error")
+        with patch("importlib.reload", side_effect=lambda module: module), \
+                patch.object(openai_module, "analyze_sinks", side_effect=analysis_report) as scan_analysis:
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertTrue(Path(app.session_state["scan_report_path"]).exists())
+            self.assertIsNone(app.session_state["analysis_report_path"])
+            self.assertNotIn("private-error", app.warning[0].value)
+            self.analyzer.return_value.analyze_file.side_effect = successful_write
+            next(button for button in app.button if button.label == "총평·공격 시나리오 다시 시도").click().run()
+            scan_analysis.assert_called_once()
+        self.assertFalse(app.exception)
+        self.assertNotIn("additional_analysis_error", app.session_state)
+        self.assertTrue(Path(app.session_state["analysis_report_path"]).exists())
 
     def test_merged_dashboard_reads_latest_scan_and_has_one_brand_bar(self):
         app = AppTest.from_file(str(APP))
