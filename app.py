@@ -205,12 +205,36 @@ def render_metrics(summary: dict) -> None:
     cols[4].metric("Critical + High", summary["severity_counts"]["CRITICAL"] + summary["severity_counts"]["HIGH"])
 
 
-def get_check_rows(scan_data: dict) -> pd.DataFrame:
+def _recommendation_key(finding: dict, *, ai: bool = False) -> tuple:
+    parameters = tuple(sorted({
+        (str(item.get("name", "")), str(item.get("location", "")))
+        for item in finding.get("parameters", []) if isinstance(item, dict)
+    }))
+    return (
+        finding.get("scanner_id", ""), finding.get("url", ""),
+        str(finding.get("method", "")).upper(), finding.get("name", ""),
+        parameters, finding.get("evidence" if ai else "result", ""),
+    )
+
+
+def get_check_rows(scan_data: dict, analysis_data: dict | None = None) -> pd.DataFrame:
+    # AI 권고는 검사 대상과 근거가 일치하는 확정 취약점에만 연결한다.
+    recommendations = {}
+    for item in get_analysis_section(analysis_data or {}).get("key_findings", []):
+        if not isinstance(item, dict):
+            continue
+        recommendation = item.get("recommendation")
+        if isinstance(recommendation, str) and recommendation.strip():
+            recommendations[_recommendation_key(item, ai=True)] = recommendation.strip()
     # 최신 JSON의 전체 점검 목록을 사용하여 양호 항목도 집계합니다.
     rows = []
     if isinstance(scan_data.get("findings"), list) and scan_data["findings"]:
         for finding in scan_data["findings"]:
             details = finding.get("details") or {}
+            ai_recommendation = (
+                recommendations.get(_recommendation_key(finding), "")
+                if finding.get("vuln") == "VULNERABLE" else ""
+            )
             parameters = finding.get("parameters") or []
             parameter_names = ", ".join(item.get("name", "") if isinstance(item, dict) else str(item) for item in parameters)
             raw_result = details.get("raw_result") or {}
@@ -225,7 +249,7 @@ def get_check_rows(scan_data: dict) -> pd.DataFrame:
                          "위치": finding.get("url", ""), "메서드": finding.get("method", ""),
                          "파라미터": parameter_names, "근거": finding.get("result", ""),
                          "설명": finding.get("description", ""),
-                         "대응방안": details.get("remediation", ""), "페이로드": payload,
+                         "대응방안": ai_recommendation or details.get("remediation", ""), "페이로드": payload,
                          "상세정보": details})
     else:
         for scan in scan_data.get("results", []):
@@ -570,8 +594,8 @@ def render_scanner_evidence(row: pd.Series) -> None:
         st.json(details, expanded=False)
 
 
-def render_findings_table(scan_data: dict) -> None:
-    checks = get_check_rows(redact_sensitive_data(scan_data))
+def render_findings_table(scan_data: dict, analysis_data: dict | None = None) -> None:
+    checks = get_check_rows(redact_sensitive_data(scan_data), analysis_data)
     if checks.empty:
         st.info("표시할 결과가 없습니다.")
         return
@@ -1252,7 +1276,7 @@ def main() -> None:
         with st.container(border=True):
             st.subheader("상세 진단 결과")
             st.caption("전체 점검 판정을 필터링하고 선택한 항목의 근거와 대응방안을 확인하세요.")
-            render_findings_table(scan_data)
+            render_findings_table(scan_data, analysis_data)
 
     with tab_review:
         render_review_queue(scan_data)

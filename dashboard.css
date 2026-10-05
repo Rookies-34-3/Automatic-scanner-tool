@@ -117,7 +117,7 @@ button[kind="primary"] { background: #246ec7; border-color: #246ec7; color: whit
 .overall-assessment-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
 .overall-assessment-heading span { display: block; margin-bottom: .2rem; color: #3275ad; font-size: .59rem; font-weight: 850; letter-spacing: .14em; }
 .overall-assessment-heading h3 { margin: 0; color: #17364e; font-size: 1.05rem !important; }
-.overall-assessment p { margin: 0 0 1rem; color: #49657a; font-size: .95rem; line-height: 1.85; }
+.overall-assessment p { margin: 0 0 1rem; color: #49657a; font-size: .85rem; line-height: 1.85; }
 .overall-assessment p:last-child { margin-bottom: 0; }
 .assessment-risk { flex: 0 0 auto; padding: .33rem .62rem; border-radius: 999px; background: #edf2f6; color: #536c80; font-size: .67rem; letter-spacing: .04em; }
 .assessment-risk.critical { background: #f8e4e9; color: #9b3048; }
