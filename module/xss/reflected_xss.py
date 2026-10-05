@@ -35,12 +35,17 @@ class ReflectedXSSScanner:
                 if sep:
                     self.session.cookies.set(name, value, domain=urlsplit(target["url"]).hostname, path="/")
         candidates = list(target["parameters"])
-        if target["method"].upper() == "POST":
+        if target["method"].upper() in {"GET", "POST"}:
             try:
-                _, controls = self._form_parameters(target)
+                values, controls = self._form_parameters(target)
                 candidates = [name for name in candidates if name not in controls]
+                target["_skipped_parameters"] = [name for name in target["parameters"] if name in controls]
+                if target["method"].upper() == "GET":
+                    target["parameters"].update(values)
             except requests.RequestException as exc:
-                return self._result(target, [self._request_error(exc, "입력 폼 준비")])
+                # GET 쿼리는 HTML 폼 없이도 검사할 수 있다.
+                if target["method"].upper() == "POST":
+                    return self._result(target, [self._request_error(exc, "입력 폼 준비")])
         results = []
 
         for parameter in candidates:
@@ -70,7 +75,8 @@ class ReflectedXSSScanner:
             "vuln": vuln,
             "result": summary,
             "severity": "HIGH" if vuln is True else "INFO" if vuln in ("REVIEW", "ERROR") else "NONE",
-            "details": {"raw_result": results},
+            "details": {"raw_result": results,
+                        "skipped_parameters": target.get("_skipped_parameters", [])},
         }
 
     @staticmethod
@@ -78,7 +84,8 @@ class ReflectedXSSScanner:
         if isinstance(exc, requests.Timeout):
             reason = f"{stage} 요청이 제한 시간 안에 완료되지 않아 XSS 여부를 판단하지 못했습니다."
         elif isinstance(exc, requests.HTTPError) and exc.response is not None:
-            reason = ReflectedXSSScanner._http_rejection(exc.response.status_code)
+            rejection = ReflectedXSSScanner._rejected_response(exc.response, parameter, stage)
+            return rejection | {"error": True, "error_type": type(exc).__name__}
         elif isinstance(exc, _FormUnavailable):
             reason = "검사 대상에 제출할 POST 폼을 찾지 못해 XSS 여부를 판단하지 못했습니다."
         elif isinstance(exc, requests.ConnectionError):
@@ -99,6 +106,31 @@ class ReflectedXSSScanner:
         }.get(status, "서버 오류를 확인해야 합니다." if status >= 500 else "서버 응답을 확인해야 합니다.")
         return f"서버가 XSS 검사 요청에 HTTP {status} 오류를 반환하여 취약점 여부를 판단하지 못했습니다. {explanation}"
 
+    @staticmethod
+    def _rejected_response(response, parameter, stage):
+        soup = BeautifulSoup(response.text, "html.parser")
+        node = soup.select_one(".lab-error p, [role=alert], .error-message, .alert-danger")
+        if node is None:
+            paragraphs = soup.find_all("p")
+            node = paragraphs[0] if len(paragraphs) == 1 else None
+        message = node.get_text(" ", strip=True)[:300] if node else ""
+        if not message and "application/json" in getattr(response, "headers", {}).get("Content-Type", ""):
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    message = next((data[key][:300] for key in ("message", "detail", "error")
+                                    if isinstance(data.get(key), str)), "")
+            except ValueError:
+                pass
+        reason = ReflectedXSSScanner._http_rejection(response.status_code)
+        if message:
+            reason = (f"서버가 XSS 검사 요청에 HTTP {response.status_code} 오류를 반환하여 "
+                      f"취약점 여부를 판단하지 못했습니다. 서버 설명: {message}")
+        return {"parameter": parameter, "vulnerable": False, "inconclusive": True,
+                "status_code": response.status_code, "stage": stage,
+                "reason": reason, "server_message": message,
+                "final_url": getattr(response, "url", "")}
+
     def _scan_parameter(self, target, parameter):
         canary = f"XSS_CANARY_{uuid.uuid4().hex[:8]}"
 
@@ -108,9 +140,7 @@ class ReflectedXSSScanner:
             return self._request_error(e, "입력값 반사 확인", parameter)
 
         if getattr(response, "status_code", 200) >= 400:
-            return {"parameter": parameter, "vulnerable": False, "inconclusive": True,
-                    "status_code": response.status_code, "stage": "probe",
-                    "reason": self._http_rejection(response.status_code)}
+            return self._rejected_response(response, parameter, "probe")
 
         # 1. 입력값 반사 여부 확인
         if canary not in response.text:
@@ -132,9 +162,7 @@ class ReflectedXSSScanner:
             return self._request_error(e, "XSS 코드 검증", parameter) | {"context": context}
 
         if getattr(payload_response, "status_code", 200) >= 400:
-            return {"parameter": parameter, "vulnerable": False, "inconclusive": True,
-                    "status_code": payload_response.status_code, "stage": "payload",
-                    "reason": self._http_rejection(payload_response.status_code)}
+            return self._rejected_response(payload_response, parameter, "payload")
 
         # 4. Payload가 그대로 반사되는지 확인
         if payload in payload_response.text:
@@ -179,38 +207,77 @@ class ReflectedXSSScanner:
         response = self.session.get(target["url"], timeout=self.timeout, allow_redirects=True)
         response.raise_for_status()
         forms = BeautifulSoup(response.text, "html.parser").find_all("form")
-        form = next((form for form in forms
-                     if form.get("method", "GET").upper() == "POST"
-                     and urlsplit(urljoin(response.url, form.get("action", "")))[:3]
-                     == urlsplit(target["url"])[:3]), None)
+        method = target["method"].upper()
+        matching = [form for form in forms
+                    if form.get("method", "GET").upper() == method
+                    and urlsplit(urljoin(response.url, form.get("action", "")))[:3]
+                    == urlsplit(target["url"])[:3]]
+        form = max(matching, key=lambda form: len(set(target["parameters"]) &
+                   {field.get("name") for field in form.select("[name]")}), default=None)
         if form is None:
+            if method == "GET":
+                return {}, set()
             raise _FormUnavailable("검사 대상에 제출할 POST 폼을 찾지 못했습니다.")
         values, controls = {}, set()
         for field in form.select("input[name], textarea[name], select[name], button[name]"):
             name = field["name"]
             kind = field.get("type", "text").lower()
-            if field.has_attr("disabled") or (kind in {"checkbox", "radio"} and not field.has_attr("checked")):
+            control = (kind in {"hidden", "password", "submit", "button", "reset", "file", "checkbox", "radio"}
+                       or field.name in {"button", "select"} or re.search(r"csrf|token|password", name, re.I))
+            if control or field.has_attr("disabled"):
+                controls.add(name)
+            if field.has_attr("disabled") or kind in {"file", "reset", "button"}:
+                continue
+            if kind in {"checkbox", "radio"} and not field.has_attr("checked") and not field.has_attr("required"):
+                continue
+            if name in values and (field.name == "button" or kind in {"radio", "submit"}):
                 continue
             if field.name == "textarea":
                 value = field.get_text()
             elif field.name == "select":
-                option = field.find("option", selected=True) or field.find("option")
+                options = [option for option in field.find_all("option")
+                           if not option.has_attr("disabled")
+                           and not (option.parent.name == "optgroup" and option.parent.has_attr("disabled"))]
+                supplied = target["parameters"].get(name)
+                option = next((option for option in options
+                               if supplied not in (None, "") and option.get("value", option.get_text()) == supplied), None)
+                option = option or next((option for option in options if option.has_attr("selected")
+                                        and (not field.has_attr("required") or option.get("value", option.get_text()))), None)
+                option = option or next((option for option in options if option.get("value", option.get_text())), None)
                 value = option.get("value", option.get_text()) if option else ""
             else:
-                value = field.get("value", "")
-            values[name] = value
-            if kind in {"hidden", "password", "submit", "button", "reset"} or field.name == "button" or re.search(r"csrf|token|password", name, re.I):
-                controls.add(name)
+                value = field.get("value", "on" if kind in {"checkbox", "radio"} else "")
+            supplied = target["parameters"].get(name)
+            if not control and supplied not in (None, ""):
+                value = supplied
+            if not value and field.has_attr("required") and not control:
+                value = self._required_value(field)
             if kind == "password" and not value:
-                values[name] = "RookiesScan_invalid_password_1!"
+                value = "RookiesScan_invalid_password_1!"
+            values[name] = value
         return values, controls
+
+    @staticmethod
+    def _required_value(field):
+        kind = field.get("type", "text").lower()
+        value = {"email": "rookiescan@example.test", "url": "https://example.com/",
+                 "tel": "01012345678", "number": field.get("min", "1"),
+                 "date": field.get("min", "2026-01-01")}.get(kind, "RookiesScan test")
+        if kind in {"text", "search"} or field.name == "textarea":
+            try:
+                minimum = int(field.get("minlength", 1))
+                maximum = int(field.get("maxlength", max(len(value), minimum)))
+                value = value.ljust(minimum, "x")[:maximum]
+            except ValueError:
+                pass
+        return value
 
     def _send(self, target, parameter, value):
         parameters = copy.deepcopy(target["parameters"])
         if target["method"].upper() == "POST":
             form_values, _ = self._form_parameters(target)
             # 매 요청마다 토큰을 갱신하고 함께 제출해야 하는 필드를 유지한다.
-            parameters.update(form_values)
+            parameters = form_values
         parameters[parameter] = value
 
         headers = {}
