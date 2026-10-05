@@ -636,83 +636,82 @@ def render_findings_table(scan_data: dict) -> None:
         height=380,
         row_height=44,
         on_select="rerun",
-        selection_mode="single-row",
+        selection_mode="multi-row",
         key="findings_table",
     )
-    st.caption(f"행을 선택하면 아래 상세 항목이 바뀝니다. · {len(filtered)}개 표시 / 전체 {len(checks)}개 점검")
+    st.caption(f"체크한 모든 행의 상세 정보가 아래에 표시됩니다. · {len(filtered)}개 표시 / 전체 {len(checks)}개 점검")
 
     if filtered.empty:
         st.info("선택한 조건에 해당하는 결과가 없습니다.")
         return
 
     detail_rows = filtered.reset_index(drop=True)
-    selected_table_rows = table_event.selection.rows
-    if selected_table_rows and 0 <= int(selected_table_rows[0]) < len(detail_rows):
-        # 표의 선택 행과 아래 상세 선택기를 같은 인덱스로 맞춥니다.
-        st.session_state["finding_detail_selection_v2"] = int(selected_table_rows[0])
-    else:
-        # 위젯의 이전 상태가 문자열이거나 필터 변경 후 범위를 벗어나면 초기화합니다.
-        stored_selection = st.session_state.get("finding_detail_selection_v2", 0)
-        if not isinstance(stored_selection, int) or not 0 <= stored_selection < len(detail_rows):
-            st.session_state["finding_detail_selection_v2"] = 0
+    selected_indices = [
+        int(index) for index in table_event.selection.rows
+        if 0 <= int(index) < len(detail_rows)
+    ]
+    if not selected_indices:
+        st.info("상세 정보를 확인할 항목을 표에서 체크하세요.")
+        return
 
-    if not isinstance(st.session_state.get("finding_detail_selection_v2"), int):
-        st.session_state["finding_detail_selection_v2"] = 0
-
-    selected_index = st.selectbox(
-        "상세 항목 선택", range(len(detail_rows)),
-        format_func=lambda index: f"[{detail_rows.iloc[index]['위험도']}] {detail_rows.iloc[index]['유형']} · {detail_rows.iloc[index]['메서드']} {detail_rows.iloc[index]['위치']}",
-        key="finding_detail_selection_v2",
-    )
-    row = detail_rows.iloc[selected_index]
-    with st.container(border=True, key="finding_detail"):
-        verdict_label = verdict_korean.get(row["판정"], row["판정"])
-        severity_class = str(row["위험도"]).lower()
-        st.html(
-            '<div class="finding-detail-header">'
-            '<div><span class="finding-detail-eyebrow">SELECTED FINDING</span>'
-            f'<h3>{escape(str(row["유형"]))}</h3></div>'
-            '<div class="finding-detail-badges">'
-            f'<span class="detail-badge verdict">{escape(str(verdict_label))}</span>'
-            f'<span class="detail-badge severity {escape(severity_class)}">{escape(str(row["위험도"]))}</span>'
-            f'<span class="detail-badge scanner">{escape(str(row["스캐너"] or "미지정"))}</span>'
-            '</div></div>'
-        )
-        st.html(
-            '<div class="finding-endpoint">'
-            f'<span>{escape(str(row["메서드"] or "-"))}</span>'
-            f'<code>{escape(str(row["위치"] or "-"))}</code>'
-            '</div>'
-        )
-        description = row["설명"] if has_display_value(row["설명"]) else ""
-        show_description = bool(description) and str(description).strip() != str(row["근거"]).strip()
-        info_cards = (
-            '<div class="detail-info-card"><span>점검 파라미터</span>'
-            f'<strong>{escape(str(row["파라미터"] or "경로 기반 점검"))}</strong></div>'
-        )
-        if show_description:
-            info_cards += (
-                '<div class="detail-info-card"><span>판정 설명</span>'
-                f'<strong>{escape(str(description))}</strong></div>'
+    st.caption(f"선택한 항목 {len(selected_indices)}개")
+    for order, selected_index in enumerate(selected_indices, start=1):
+        row = detail_rows.iloc[selected_index]
+        with st.container(border=True, key=f"finding_detail_{selected_index}"):
+            verdict_label = verdict_korean.get(row["판정"], row["판정"])
+            severity_class = str(row["위험도"]).lower()
+            st.html(
+                '<div class="finding-detail-header">'
+                f'<div><span class="finding-detail-eyebrow">SELECTED FINDING {order:02d}</span>'
+                f'<h3>{escape(str(row["유형"]))}</h3></div>'
+                '<div class="finding-detail-badges">'
+                f'<span class="detail-badge verdict">{escape(str(verdict_label))}</span>'
+                f'<span class="detail-badge severity {escape(severity_class)}">{escape(str(row["위험도"]))}</span>'
+                f'<span class="detail-badge scanner">{escape(str(row["스캐너"] or "미지정"))}</span>'
+                '</div></div>'
             )
-        st.html(f'<div class="detail-info-grid">{info_cards}</div>')
 
-        st.html('<div class="detail-section-title"><span>01</span> 탐지 근거</div>')
-        st.html(
-            '<div class="detail-evidence-block">'
-            f'{escape(str(row["근거"] or "탐지 근거가 제공되지 않았습니다."))}'
-            '</div>'
-        )
-        if has_display_value(row["페이로드"]):
-            st.html('<div class="detail-sub-label">사용한 페이로드</div>')
-            st.code(str(row["페이로드"]), language="text", wrap_lines=True)
+            endpoint_column, parameter_column = st.columns(2, gap="medium")
+            with endpoint_column:
+                st.html(
+                    '<div class="detail-compact-card"><span>요청 엔드포인트</span>'
+                    '<div class="finding-endpoint">'
+                    f'<span>{escape(str(row["메서드"] or "-"))}</span>'
+                    f'<code>{escape(str(row["위치"] or "-"))}</code>'
+                    '</div></div>'
+                )
+            with parameter_column:
+                st.html(
+                    '<div class="detail-compact-card"><span>점검 파라미터</span>'
+                    f'<strong>{escape(str(row["파라미터"] or "경로 기반 점검"))}</strong></div>'
+                )
 
-        st.html('<div class="detail-section-title"><span>02</span> 대응 방안</div>')
-        remediation = row["대응방안"] or "추가 검토 후 적절한 보안 통제를 적용하세요."
-        st.html(f'<div class="detail-remediation-block">{escape(str(remediation))}</div>')
+            description = row["설명"] if has_display_value(row["설명"]) else ""
+            show_description = bool(description) and str(description).strip() != str(row["근거"]).strip()
+            if show_description:
+                st.html(
+                    '<div class="detail-description-row"><span>판정 설명</span>'
+                    f'<p>{escape(str(description))}</p></div>'
+                )
 
-        st.html('<div class="detail-section-title"><span>03</span> 상세 기술 증거</div>')
-        render_scanner_evidence(row)
+            evidence_column, remediation_column = st.columns(2, gap="medium")
+            with evidence_column:
+                st.html('<div class="detail-section-title"><span>01</span> 탐지 근거</div>')
+                st.html(
+                    '<div class="detail-evidence-block">'
+                    f'{escape(str(row["근거"] or "탐지 근거가 제공되지 않았습니다."))}'
+                    '</div>'
+                )
+                if has_display_value(row["페이로드"]):
+                    st.html('<div class="detail-sub-label">사용한 페이로드</div>')
+                    st.code(str(row["페이로드"]), language="text", wrap_lines=True)
+            with remediation_column:
+                st.html('<div class="detail-section-title"><span>02</span> 대응 방안</div>')
+                remediation = row["대응방안"] or "추가 검토 후 적절한 보안 통제를 적용하세요."
+                st.html(f'<div class="detail-remediation-block">{escape(str(remediation))}</div>')
+
+            st.html('<div class="detail-section-title technical-evidence-title"><span>03</span> 상세 기술 증거</div>')
+            render_scanner_evidence(row)
 
 
 def get_review_guidance(row: pd.Series) -> tuple[str, list[str]]:
