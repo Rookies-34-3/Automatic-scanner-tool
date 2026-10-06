@@ -1,20 +1,21 @@
 # 기준 문서 검색 기반 보고서
 
-`report_writer.py`의 기존 스캔 JSON 저장 함수에 진단 보고서 생성 기능을 추가했습니다.
-대시보드의 기존 **보고서 생성** 버튼은 `report_writer.run()`을 호출합니다.
+`report.py`에서 기존 스캔·분석 JSON과 기준 문서를 읽어 PDF 진단 보고서를 생성합니다.
+`report_writer.py`는 기존 JSON 구성·저장 역할을 유지합니다.
+대시보드의 기존 **보고서 생성** 버튼은 `report.run()`을 호출합니다.
 
 ## 실행
 
 ```sh
 pip install -r requirements.txt
-python report_writer.py
+python report.py
 ```
 
 기본 입력은 `output/scan-results.json`, `output/analysis.json`,
 `docs/reference/2026-guide.pdf`입니다. 상대 경로는 프로젝트 디렉터리를 기준으로 처리합니다.
 
 ```sh
-python report_writer.py --guide /절대/경로/기준문서.pdf --start-page 676
+python report.py --guide /절대/경로/기준문서.pdf --start-page 676
 ```
 
 PDF 경로는 `ROOKIESCAN_GUIDE_PDF` 환경변수로도 설정할 수 있습니다.
@@ -34,14 +35,23 @@ PDF 경로는 `ROOKIESCAN_GUIDE_PDF` 환경변수로도 설정할 수 있습니�
 
 ## 결과와 검증
 
-`output/reports/`에 매번 고유한 이름의 HTML, Markdown, JSON을 저장합니다.
-HTML은 브라우저에서 열고 인쇄 기능으로 PDF로 저장할 수 있습니다.
-대시보드에서 세 형식을 다운로드할 수 있습니다.
+`output/reports/`에 매번 고유한 이름의 **PDF 보고서**를 저장합니다.
+대시보드에는 **PDF 보고서 다운로드** 버튼 하나를 표시합니다.
+보고서에 사용한 구조화 JSON은 같은 이름으로 보관하며 다운로드 형식 선택에는 노출하지 않습니다.
+
+PDF는 A4 기준으로 표지, 문서 관리, 실제 페이지에 연결된 목차, 진단 개요, 종합 위험 평가,
+주요 취약점 목록, 항목별 상세 분석, 수동 검토, 공격 시나리오, 개선 우선순위, 자동화 검사 주의사항,
+전체 결과 및 기준 연결 부록으로 구성합니다. 머리말·꼬리말·페이지 번호를 포함합니다.
+날짜는 한국 시간(KST)으로 표시하며, 검토자·승인자·조치 완료 상태를 임의로 기재하지 않습니다.
+
+`reportlab`으로 PDF를 직접 생성하므로 Word, LibreOffice 또는 브라우저 설치가 필요 없습니다.
+`docs/fonts/`의 나눔고딕 일반·굵은 글꼴을 PDF에 포함하여 한글을 표시합니다.
+글꼴의 배포 라이선스는 같은 디렉터리의 `LICENSE.txt`에 보관합니다.
 
 - 집계는 정규화된 `findings`에서 계산하여 `results`와 중복 집계하지 않습니다.
 - `analysis.json.source_hash`가 현재 스캔과 다르면 이전 AI 분석을 사용하지 않습니다.
 - 취약점·입력 항목·위치·근거가 일치하는 AI 대응 방안만 연결합니다.
-- `result`에는 사람에게 읽히는 보고서 내용, 구조화 JSON에는 원본 상세 증거도 보관합니다.
+- PDF에는 사람에게 읽히는 보고서 내용, 구조화 JSON에는 원본 상세 증거도 보관합니다.
 - 자동 스캐너 판정과 가이드 적합성 판정은 다릅니다. 미연결 기준은 미점검·미지원으로 표시합니다.
 - 포트 스캔 결과는 보고서에 포함하지만 웹 장의 기준에 억지로 연결하지 않습니다.
 - 참조에는 기준 항목과 개요 페이지, 실제 검색된 페이지·청크가 포함됩니다.
